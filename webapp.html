@@ -148,6 +148,16 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
     <span class="rl">Фон текста</span>
     <div class="tog"><button id="bg0" class="on" onclick="setBG('none')">Нет</button><button id="bg1" onclick="setBG('shadow')">Тень</button><button id="bg2" onclick="setBG('box')">Плашка</button></div>
   </div>
+  <div class="row" id="rowShadow" style="display:none">
+    <span class="rl">Сила тени</span>
+    <input type="range" id="shadowStrength" min="1" max="10" value="3" oninput="onShadow()">
+    <span class="rv" id="shadowStrengthV">3</span>
+  </div>
+  <div class="row" id="rowBgOpacity" style="display:none">
+    <span class="rl">Прозрачность</span>
+    <input type="range" id="bgOpacity" min="10" max="100" value="65" oninput="onBgOpacity()">
+    <span class="rv" id="bgOpacityV">65%</span>
+  </div>
   <div class="row">
     <span class="rl">Слов в строке</span>
     <input type="range" id="maxWords" min="2" max="8" value="5" step="1" oninput="onMaxWords()">
@@ -207,7 +217,9 @@ var S = {
   fontSize:22, fontWeight:'normal', bgStyle:'none',
   color:'#ffffff', maxWords:5,
   zone:{ left:5, right:5, top:5, bottom:5 },
-  fontName:'Arial'
+  fontName:'Arial',
+  shadowStrength: 3,
+  bgOpacity: 65
 };
 
 var PRESETS = {
@@ -307,14 +319,20 @@ function render() {
   el.style.width       = zw + 'px';
   el.style.left        = zl + 'px';
 
+  var ss = S.shadowStrength || 3;
+  var op = (S.bgOpacity || 65) / 100;
   if (S.bgStyle === 'box') {
-    el.style.background = 'rgba(0,0,0,0.65)';
-    el.style.padding    = Math.round(3*scale) + 'px ' + Math.round(8*scale) + 'px';
+    el.style.background   = 'rgba(0,0,0,' + op + ')';
+    el.style.padding      = Math.round(4*scale) + 'px ' + Math.round(10*scale) + 'px';
     el.style.borderRadius = Math.round(4*scale) + 'px';
-    el.style.textShadow = 'none';
+    el.style.textShadow   = 'none';
   } else if (S.bgStyle === 'shadow') {
     el.style.background = 'none'; el.style.padding = '0'; el.style.borderRadius = '0';
-    el.style.textShadow = '0 0 ' + Math.round(8*scale) + 'px #000';
+    var spread = Math.round(ss * 3 * scale);
+    el.style.textShadow =
+      '0 0 ' + spread + 'px #000,' +
+      '0 0 ' + Math.round(spread*1.5) + 'px #000,' +
+      '0 ' + Math.round(scale) + 'px ' + Math.round(spread*0.5) + 'px #000';
   } else {
     el.style.background = 'none'; el.style.padding = '0'; el.style.borderRadius = '0';
     var o = Math.max(1, Math.round(scale));
@@ -383,8 +401,24 @@ function onZone()      {
   document.getElementById('zTv').textContent=S.zone.top+'%';  document.getElementById('zBv').textContent=S.zone.bottom+'%';
   render();
 }
+function onShadow() {
+  S.shadowStrength = parseInt(document.getElementById('shadowStrength').value);
+  document.getElementById('shadowStrengthV').textContent = S.shadowStrength;
+  render();
+}
+function onBgOpacity() {
+  S.bgOpacity = parseInt(document.getElementById('bgOpacity').value);
+  document.getElementById('bgOpacityV').textContent = S.bgOpacity + '%';
+  render();
+}
 function setFW(w) { S.fontWeight=w; document.getElementById('fw0').className=w==='normal'?'on':''; document.getElementById('fw1').className=w==='bold'?'on':''; render(); }
-function setBG(v) { S.bgStyle=v; ['none','shadow','box'].forEach(function(x,i){ document.getElementById('bg'+i).className=x===v?'on':''; }); render(); }
+function setBG(v) {
+  S.bgStyle = v;
+  ['none','shadow','box'].forEach(function(x,i){ document.getElementById('bg'+i).className = x===v ? 'on' : ''; });
+  document.getElementById('rowShadow').style.display   = v==='shadow' ? 'flex' : 'none';
+  document.getElementById('rowBgOpacity').style.display = v==='box'    ? 'flex' : 'none';
+  render();
+}
 function clearP()  { PIDS.forEach(function(id){ document.getElementById('pb-'+id).className='pb'; }); }
 function setPreset(id) {
   var p = PRESETS[id]; if (!p) return;
@@ -410,7 +444,8 @@ function buildColors() {
 function resetAll() {
   S = {vidW:1080,vidH:1920,posX:50,posY:88,fontSize:22,fontWeight:'normal',
        bgStyle:'none',color:'#ffffff',maxWords:5,
-       zone:{left:5,right:5,top:5,bottom:5},fontName:'Arial'};
+       zone:{left:5,right:5,top:5,bottom:5},fontName:'Arial',
+       shadowStrength:3,bgOpacity:65};
   document.getElementById('vidW').value=1080; document.getElementById('vidH').value=1920;
   document.getElementById('fontSize').value=22; document.getElementById('fontSizeV').textContent='22px';
   document.getElementById('maxWords').value=5; document.getElementById('maxWordsV').textContent='5';
@@ -429,7 +464,8 @@ function saveSettings() {
   var data = {
     posX:S.posX, posY:S.posY, fontSize:S.fontSize, fontWeight:S.fontWeight,
     bgStyle:S.bgStyle, color:S.color, maxWords:S.maxWords,
-    zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName
+    zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName,
+    shadowStrength:S.shadowStrength, bgOpacity:S.bgOpacity
   };
   fallbackCopy(JSON.stringify(data), document.getElementById('btnSave'));
 }
