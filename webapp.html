@@ -181,6 +181,22 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
 var tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
+// Показываем как открыт WebApp — для диагностики
+window.addEventListener('DOMContentLoaded', function() {
+  var info = document.createElement('div');
+  info.style.cssText = 'background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#888;';
+  if (!tg) {
+    info.textContent = 'Открыто в браузере (не Telegram)';
+    info.style.borderColor = '#4a2a2a'; info.style.background = '#2a1a1a';
+  } else if (!tg.initData || tg.initData === '') {
+    info.innerHTML = '⚠️ <b style="color:#ff9900">Нет initData</b> — открыто не через Telegram или через inline кнопку. sendData не сработает. Используй Menu Button (кнопка рядом с полем ввода).';
+    info.style.borderColor = '#4a3a1a'; info.style.background = '#2a2a1a';
+  } else {
+    info.innerHTML = '✅ <span style="color:#34c76f">Открыто через Telegram</span> — sendData должен работать.';
+  }
+  document.body.insertBefore(info, document.body.firstChild);
+});
+
 // ── Состояние ──────────────────────────────────────────────
 var S = {
   vidW:1080, vidH:1920,
