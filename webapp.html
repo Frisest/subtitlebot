@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Настройки субтитров</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --accent: #4f9eff;
+    --accent2: #7b61ff;
+    --text: #f0f0f0;
+    --text2: #888;
+    --danger: #ff5c5c;
+    --success: #4ecf8a;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-size: 15px;
+    padding: 12px 12px 100px;
+    min-height: 100vh;
+  }
+
+  /* ---------- PREVIEW ---------- */
+  .preview-wrap {
+    position: relative;
+    background: #000;
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 16px;
+    aspect-ratio: 9/16;
+    max-height: 340px;
+    width: 100%;
+  }
+
+  .preview-bg {
+    width: 100%; height: 100%;
+    background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: #333; letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* Зона безопасности субтитров */
+  #safe-zone {
+    position: absolute;
+    border: 1.5px dashed rgba(79,158,255,0.5);
+    border-radius: 4px;
+    background: rgba(79,158,255,0.04);
+    pointer-events: none;
+    transition: all 0.08s;
+  }
+
+  /* Превью текста субтитров */
+  #sub-preview {
+    position: absolute;
+    left: 0; right: 0;
+    text-align: center;
+    pointer-events: none;
+    transition: all 0.08s;
+    padding: 0 8px;
+  }
+
+  #sub-preview span {
+    display: inline-block;
+    color: #fff;
+    text-shadow:
+      1px 1px 0 #000,
+     -1px 1px 0 #000,
+      1px -1px 0 #000,
+     -1px -1px 0 #000,
+      0 2px 4px rgba(0,0,0,0.8);
+    line-height: 1.3;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Ручки перетаскивания зоны */
+  .handle {
+    position: absolute;
+    width: 10px; height: 10px;
+    background: var(--accent);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    cursor: grab;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    touch-action: none;
+  }
+  .handle:active { cursor: grabbing; transform: translate(-50%,-50%) scale(1.3); }
+
+  /* ---------- SECTIONS ---------- */
+  .section {
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text2);
+    padding: 10px 14px 6px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    gap: 12px;
+  }
+  .row:first-of-type { border-top: none; }
+
+  .row-label {
+    font-size: 14px;
+    color: var(--text);
+    flex-shrink: 0;
+    min-width: 90px;
+  }
+
+  .row-value {
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 600;
+    min-width: 36px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ---------- SLIDERS ---------- */
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--surface);
+    box-shadow: 0 0 0 2px var(--accent);
+    cursor: grab;
+  }
+  input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; }
+
+  /* ---------- TOGGLE ---------- */
+  .toggle-wrap {
+    display: flex;
+    gap: 0;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 3px;
+    flex-shrink: 0;
+  }
+  .toggle-wrap button {
+    border: none;
+    background: none;
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .toggle-wrap button.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* ---------- COLOR PICKER ---------- */
+  .color-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .color-swatch {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  .color-swatch:hover { transform: scale(1.1); }
+  .color-swatch.selected { border-color: #fff; }
+
+  /* ---------- POSITION GRID ---------- */
+  .pos-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .pos-btn {
+    border: 1.5px solid var(--border);
+    background: var(--surface2);
+    color: var(--text2);
+    border-radius: 8px;
+    padding: 8px 4px;
+    font-size: 11px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .pos-btn:hover { border-color: var(--accent); color: var(--text); }
+  .pos-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .pos-btn .icon { font-size: 16px; display: block; margin-bottom: 2px; }
+
+  /* ---------- RESET / SAVE ---------- */
+  .bottom-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    padding: 10px 12px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+  }
+
+  .btn-reset {
+    flex: 0 0 auto;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    color: var(--text2);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .btn-reset:hover { border-color: var(--danger); color: var(--danger); }
+
+  .btn-save {
+    flex: 1;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: #fff;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: opacity 0.15s;
+  }
+  .btn-save:active { opacity: 0.85; }
+
+  .tag {
+    display: inline-block;
+    background: rgba(79,158,255,0.12);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+
+<!-- ПРЕВЬЮ ВИДЕО С ЗОНОЙ СУБТИТРОВ -->
+<div class="preview-wrap" id="preview">
+  <div class="preview-bg">Превью видео</div>
+
+  <!-- Зона безопасности (перетаскиваемые границы) -->
+  <div id="safe-zone">
+    <div class="handle" id="h-tl"></div>
+    <div class="handle" id="h-tr"></div>
+    <div class="handle" id="h-bl"></div>
+    <div class="handle" id="h-br"></div>
+  </div>
+
+  <!-- Текст субтитра -->
+  <div id="sub-preview">
+    <span id="sub-text">Пример субтитра здесь</span>
+  </div>
+</div>
+
+<!-- ПОЗИЦИЯ (быстрые пресеты) -->
+<div class="section">
+  <div class="section-title">Позиция</div>
+  <div class="pos-grid">
+    <button class="pos-btn" onclick="setPreset('top-left')"><span class="icon">↖</span>Лево верх</button>
+    <button class="pos-btn" onclick="setPreset('top-center')"><span class="icon">↑</span>Центр верх</button>
+    <button class="pos-btn" onclick="setPreset('top-right')"><span class="icon">↗</span>Право верх</button>
+    <button class="pos-btn" onclick="setPreset('mid-left')"><span class="icon">←</span>Лево</button>
+    <button class="pos-btn" onclick="setPreset('mid-center')"><span class="icon">·</span>Центр</button>
+    <button class="pos-btn" onclick="setPreset('mid-right')"><span class="icon">→</span>Право</button>
+    <button class="pos-btn" onclick="setPreset('bot-left')"><span class="icon">↙</span>Лево низ</button>
+    <button class="pos-btn active" id="preset-bot-center" onclick="setPreset('bot-center')"><span class="icon">↓</span>Центр низ</button>
+    <button class="pos-btn" onclick="setPreset('bot-right')"><span class="icon">↘</span>Право низ</button>
+  </div>
+</div>
+
+<!-- РАЗМЕР И СТИЛЬ -->
+<div class="section">
+  <div class="section-title">Размер и стиль</div>
+
+  <div class="row">
+    <span class="row-label">Размер шрифта</span>
+    <input type="range" id="fontSize" min="14" max="42" value="22" oninput="updateFont()">
+    <span class="row-value" id="fontSizeVal">22px</span>
+  </div>
+
+  <div class="row">
+    <span class="row-label">Жирность</span>
+    <div class="toggle-wrap">
+      <button id="fw-normal" onclick="setFontWeight('normal')" class="active">Обычный</button>
+      <button id="fw-bold" onclick="setFontWeight('bold')">Жирный</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <span class="row-label">Фон текста</span>
+    <div class="toggle-wrap">
+      <button id="bg-none" onclick="setBg('none')" class="active">Нет</button>
+      <button id="bg-shadow" onclick="setBg('shadow')">Тень</button>
+      <button id="bg-box" onclick="setBg('box')">Плашка</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <span class="row-label">Слов в строке</span>
+    <input type="range" id="maxWords" min="2" max="8" value="5" step="1" oninput="updateMaxWords()">
+    <span class="row-value" id="maxWordsVal">5</span>
+  </div>
+</div>
+
+<!-- ЦВЕТ ТЕКСТА -->
+<div class="section">
+  <div class="section-title">Цвет текста</div>
+  <div class="color-row" id="color-row"></div>
+</div>
+
+<!-- ОТСТУПЫ ЗОНЫ -->
+<div class="section">
+  <div class="section-title">Отступы безопасной зоны <span class="tag">Тонкая настройка</span></div>
+
+  <div class="row">
+    <span class="row-label">От левого края</span>
+    <input type="range" id="zoneLeft" min="0" max="40" value="5" oninput="updateZone()">
+    <span class="row-value" id="zoneLeftVal">5%</span>
+  </div>
+  <div class="row">
+    <span class="row-label">От правого края</span>
+    <input type="range" id="zoneRight" min="0" max="40" value="5" oninput="updateZone()">
+    <span class="row-value" id="zoneRightVal">5%</span>
+  </div>
+  <div class="row">
+    <span class="row-label">От верхнего края</span>
+    <input type="range" id="zoneTop" min="0" max="40" value="5" oninput="updateZone()">
+    <span class="row-value" id="zoneTopVal">5%</span>
+  </div>
+  <div class="row">
+    <span class="row-label">От нижнего края</span>
+    <input type="range" id="zoneBottom" min="0" max="40" value="5" oninput="updateZone()">
+    <span class="row-value" id="zoneBottomVal">5%</span>
+  </div>
+</div>
+
+<!-- ВЕРТИКАЛЬНОЕ СМЕЩЕНИЕ -->
+<div class="section">
+  <div class="section-title">Точная позиция</div>
+  <div class="row">
+    <span class="row-label">По вертикали</span>
+    <input type="range" id="posY" min="0" max="100" value="88" oninput="updatePosY()">
+    <span class="row-value" id="posYVal">88%</span>
+  </div>
+  <div class="row">
+    <span class="row-label">По горизонтали</span>
+    <input type="range" id="posX" min="0" max="100" value="50" oninput="updatePosX()">
+    <span class="row-value" id="posXVal">50%</span>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <button class="btn-reset" onclick="resetAll()">Сброс</button>
+  <button class="btn-save" onclick="saveSettings()">✓ Сохранить настройки</button>
+</div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+// --- Состояние ---
+const state = {
+  posX: 50, posY: 88,
+  fontSize: 22,
+  fontWeight: 'normal',
+  bgStyle: 'none',
+  color: '#ffffff',
+  maxWords: 5,
+  zone: { left: 5, right: 5, top: 5, bottom: 5 },
+  preset: 'bot-center'
+};
+
+const DEFAULTS = JSON.parse(JSON.stringify(state));
+
+// --- Цвета ---
+const COLORS = [
+  { hex: '#ffffff', label: 'Белый' },
+  { hex: '#ffff00', label: 'Жёлтый' },
+  { hex: '#00ff88', label: 'Зелёный' },
+  { hex: '#ff6b6b', label: 'Красный' },
+  { hex: '#4f9eff', label: 'Синий' },
+  { hex: '#ffb347', label: 'Оранжевый' },
+  { hex: '#e879f9', label: 'Розовый' },
+  { hex: '#000000', label: 'Чёрный' },
+];
+
+function buildColorRow() {
+  const row = document.getElementById('color-row');
+  COLORS.forEach(c => {
+    const s = document.createElement('div');
+    s.className = 'color-swatch' + (c.hex === state.color ? ' selected' : '');
+    s.style.background = c.hex;
+    if (c.hex === '#000000') s.style.border = '3px solid #444';
+    s.title = c.label;
+    s.onclick = () => { state.color = c.hex; buildColorRow(); renderPreview(); };
+    row.appendChild(s);
+  });
+}
+
+// --- Рендер превью ---
+function renderPreview() {
+  const preview = document.getElementById('preview');
+  const pw = preview.offsetWidth;
+  const ph = preview.offsetHeight;
+
+  // Безопасная зона
+  const zone = state.zone;
+  const zl = pw * zone.left / 100;
+  const zt = ph * zone.top / 100;
+  const zw = pw * (1 - zone.left/100 - zone.right/100);
+  const zh = ph * (1 - zone.top/100 - zone.bottom/100);
+
+  const sz = document.getElementById('safe-zone');
+  sz.style.left   = zl + 'px';
+  sz.style.top    = zt + 'px';
+  sz.style.width  = zw + 'px';
+  sz.style.height = zh + 'px';
+
+  // Позиция ручек
+  positionHandles(zl, zt, zw, zh);
+
+  // Субтитр
+  const sub = document.getElementById('sub-preview');
+  const txt = document.getElementById('sub-text');
+
+  const subX = zl + zw * (state.posX / 100);
+  const subY = zt + zh * (state.posY / 100);
+
+  sub.style.left   = zl + 'px';
+  sub.style.width  = zw + 'px';
+  sub.style.top    = Math.max(zt, Math.min(zt + zh - 40, subY)) + 'px';
+
+  txt.style.fontSize   = state.fontSize + 'px';
+  txt.style.fontWeight = state.fontWeight === 'bold' ? '700' : '400';
+  txt.style.color      = state.color;
+
+  if (state.bgStyle === 'none') {
+    txt.style.background  = 'none';
+    txt.style.padding     = '0';
+    txt.style.borderRadius = '0';
+    txt.style.textShadow  = '1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000,0 2px 6px rgba(0,0,0,0.9)';
+  } else if (state.bgStyle === 'shadow') {
+    txt.style.background  = 'none';
+    txt.style.padding     = '0';
+    txt.style.borderRadius = '0';
+    txt.style.textShadow  = '0 0 8px #000,0 0 16px #000,0 2px 4px #000';
+  } else {
+    txt.style.background  = 'rgba(0,0,0,0.65)';
+    txt.style.padding     = '3px 8px';
+    txt.style.borderRadius = '4px';
+    txt.style.textShadow  = 'none';
+  }
+}
+
+// --- Ручки зоны безопасности ---
+function positionHandles(zl, zt, zw, zh) {
+  const h = { tl: [zl, zt], tr: [zl+zw, zt], bl: [zl, zt+zh], br: [zl+zw, zt+zh] };
+  Object.entries(h).forEach(([id, [x, y]]) => {
+    const el = document.getElementById('h-' + id);
+    el.style.left = x + 'px';
+    el.style.top  = y + 'px';
+  });
+}
+
+// Перетаскивание ручек зоны
+function setupHandleDrag() {
+  const preview = document.getElementById('preview');
+  ['tl','tr','bl','br'].forEach(id => {
+    const el = document.getElementById('h-' + id);
+    let dragging = false, startX, startY, startZone;
+
+    const onStart = (cx, cy) => {
+      dragging = true;
+      startX = cx; startY = cy;
+      startZone = {...state.zone};
+    };
+    const onMove = (cx, cy) => {
+      if (!dragging) return;
+      const pw = preview.offsetWidth, ph = preview.offsetHeight;
+      const dx = (cx - startX) / pw * 100;
+      const dy = (cy - startY) / ph * 100;
+      const z = state.zone;
+      if (id === 'tl') { z.left = Math.max(0, Math.min(40, startZone.left + dx)); z.top = Math.max(0, Math.min(40, startZone.top + dy)); }
+      if (id === 'tr') { z.right = Math.max(0, Math.min(40, startZone.right - dx)); z.top = Math.max(0, Math.min(40, startZone.top + dy)); }
+      if (id === 'bl') { z.left = Math.max(0, Math.min(40, startZone.left + dx)); z.bottom = Math.max(0, Math.min(40, startZone.bottom - dy)); }
+      if (id === 'br') { z.right = Math.max(0, Math.min(40, startZone.right - dx)); z.bottom = Math.max(0, Math.min(40, startZone.bottom - dy)); }
+      syncZoneSliders();
+      renderPreview();
+    };
+    const onEnd = () => { dragging = false; };
+
+    el.addEventListener('mousedown', e => { e.preventDefault(); onStart(e.clientX, e.clientY); });
+    el.addEventListener('touchstart', e => { e.preventDefault(); onStart(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+    window.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
+    window.addEventListener('touchmove', e => { if(dragging) { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); } }, {passive:false});
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchend', onEnd);
+  });
+}
+
+function syncZoneSliders() {
+  const z = state.zone;
+  ['left','right','top','bottom'].forEach(k => {
+    const sl = document.getElementById('zone' + k.charAt(0).toUpperCase() + k.slice(1));
+    const vl = document.getElementById('zone' + k.charAt(0).toUpperCase() + k.slice(1) + 'Val');
+    if (sl) { sl.value = Math.round(z[k]); vl.textContent = Math.round(z[k]) + '%'; }
+  });
+}
+
+// --- Слайдеры и контролы ---
+function updateFont() {
+  state.fontSize = +document.getElementById('fontSize').value;
+  document.getElementById('fontSizeVal').textContent = state.fontSize + 'px';
+  renderPreview();
+}
+function updateMaxWords() {
+  state.maxWords = +document.getElementById('maxWords').value;
+  document.getElementById('maxWordsVal').textContent = state.maxWords;
+}
+function updatePosY() {
+  state.posY = +document.getElementById('posY').value;
+  document.getElementById('posYVal').textContent = state.posY + '%';
+  renderPreview();
+}
+function updatePosX() {
+  state.posX = +document.getElementById('posX').value;
+  document.getElementById('posXVal').textContent = state.posX + '%';
+  renderPreview();
+}
+function updateZone() {
+  state.zone.left   = +document.getElementById('zoneLeft').value;
+  state.zone.right  = +document.getElementById('zoneRight').value;
+  state.zone.top    = +document.getElementById('zoneTop').value;
+  state.zone.bottom = +document.getElementById('zoneBottom').value;
+  document.getElementById('zoneLeftVal').textContent   = state.zone.left + '%';
+  document.getElementById('zoneRightVal').textContent  = state.zone.right + '%';
+  document.getElementById('zoneTopVal').textContent    = state.zone.top + '%';
+  document.getElementById('zoneBottomVal').textContent = state.zone.bottom + '%';
+  renderPreview();
+}
+
+function setFontWeight(w) {
+  state.fontWeight = w;
+  document.getElementById('fw-normal').classList.toggle('active', w === 'normal');
+  document.getElementById('fw-bold').classList.toggle('active', w === 'bold');
+  renderPreview();
+}
+function setBg(v) {
+  state.bgStyle = v;
+  ['none','shadow','box'].forEach(x => document.getElementById('bg-'+x).classList.toggle('active', x === v));
+  renderPreview();
+}
+
+// --- Пресеты позиции ---
+const PRESETS = {
+  'top-left':    { posX: 10, posY: 5 },
+  'top-center':  { posX: 50, posY: 5 },
+  'top-right':   { posX: 90, posY: 5 },
+  'mid-left':    { posX: 10, posY: 50 },
+  'mid-center':  { posX: 50, posY: 50 },
+  'mid-right':   { posX: 90, posY: 50 },
+  'bot-left':    { posX: 10, posY: 88 },
+  'bot-center':  { posX: 50, posY: 88 },
+  'bot-right':   { posX: 90, posY: 88 },
+};
+
+function setPreset(id) {
+  const p = PRESETS[id];
+  state.posX = p.posX; state.posY = p.posY;
+  state.preset = id;
+  document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('posX').value = state.posX;
+  document.getElementById('posY').value = state.posY;
+  document.getElementById('posXVal').textContent = state.posX + '%';
+  document.getElementById('posYVal').textContent = state.posY + '%';
+  renderPreview();
+}
+
+// --- Сброс ---
+function resetAll() {
+  Object.assign(state, JSON.parse(JSON.stringify(DEFAULTS)));
+  document.getElementById('fontSize').value  = state.fontSize;
+  document.getElementById('fontSizeVal').textContent = state.fontSize + 'px';
+  document.getElementById('maxWords').value  = state.maxWords;
+  document.getElementById('maxWordsVal').textContent = state.maxWords;
+  document.getElementById('posX').value = state.posX;
+  document.getElementById('posY').value = state.posY;
+  document.getElementById('posXVal').textContent = state.posX + '%';
+  document.getElementById('posYVal').textContent = state.posY + '%';
+  setFontWeight('normal');
+  setBg('none');
+  syncZoneSliders();
+  document.getElementById('color-row').innerHTML = '';
+  buildColorRow();
+  document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('[onclick="setPreset(\'bot-center\')"]').classList.add('active');
+  renderPreview();
+}
+
+// --- Сохранение --- отправляем данные боту
+function saveSettings() {
+  const data = {
+    posX:       state.posX,
+    posY:       state.posY,
+    fontSize:   state.fontSize,
+    fontWeight: state.fontWeight,
+    bgStyle:    state.bgStyle,
+    color:      state.color,
+    maxWords:   state.maxWords,
+    zone:       state.zone,
+  };
+
+  if (tg) {
+    tg.sendData(JSON.stringify(data));
+  } else {
+    // Для теста в браузере
+    alert('Сохранено: ' + JSON.stringify(data, null, 2));
+  }
+}
+
+// --- Инициализация ---
+buildColorRow();
+setupHandleDrag();
+// Ждём layout чтобы размеры были известны
+requestAnimationFrame(() => { renderPreview(); });
+window.addEventListener('resize', renderPreview);
+</script>
+</body>
+</html>
