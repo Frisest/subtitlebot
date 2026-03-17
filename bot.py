@@ -27,8 +27,8 @@ def load_env():
                     os.environ[k] = v
 load_env()
 
-BOT_TOKEN  = os.getenv("BOT_TOKEN", "6858617006:AAGM9fJ42gcfrmEKDgosWo6VwdEE5q02eYE")
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://frisest.github.io/subtitlebot/webapp.html")
+BOT_TOKEN  = os.getenv("BOT_TOKEN", "")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "")
 API_PORT   = int(os.getenv("API_PORT", "8765"))
 
 DOWNLOAD_DIR  = "downloads"
@@ -232,6 +232,7 @@ async def settings_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
+    logger.info(f"WEB_APP_DATA received from {uid}: {update.message.web_app_data.data[:100]}")
     try:
         data = json.loads(update.message.web_app_data.data)
         set_settings(uid, data)
@@ -244,6 +245,7 @@ async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
     except Exception as e:
         logger.error(f"WebApp data error: {e}")
+        await update.message.reply_text(f"❌ Ошибка обработки данных: {e}")
 
 async def applysettings_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id

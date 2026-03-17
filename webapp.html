@@ -411,19 +411,40 @@ function saveSettings() {
     zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName
   };
   var btn = document.getElementById('btnSave');
+  var json = JSON.stringify(data);
 
-  // Метод 1: sendData — работает через Menu Button, закрывает WebApp сам
-  if (tg) {
+  // Проверяем доступность sendData
+  if (tg && tg.sendData) {
+    // Проверяем что WebApp открыт правильно (через Menu Button)
+    var initData = tg.initData || '';
+    if (initData === '') {
+      // initData пустой — WebApp открыт не через Telegram (тест в браузере)
+      // Просто копируем команду
+      fallbackCopy(json, btn);
+      return;
+    }
     try {
-      tg.sendData(JSON.stringify(data));
-      return; // если дошли сюда — sendData не сработал (inline кнопка)
-    } catch(e) {}
+      tg.sendData(json);
+      // Если дошли сюда — sendData вызван, WebApp должен закрыться сам
+      // На всякий случай показываем что отправлено
+      btn.className = 'btn-sav saved';
+      btn.textContent = '✓ Отправлено!';
+      return;
+    } catch(e) {
+      // sendData бросил ошибку — скорее всего открыто через inline кнопку
+      console.error('sendData error:', e.message);
+      fallbackCopy(json, btn);
+      return;
+    }
   }
 
-  // Метод 2: копируем /applysettings в буфер
-  var text = '/applysettings ' + JSON.stringify(data);
-  var tip  = document.getElementById('copyTip');
+  // tg недоступен — открыто в браузере
+  fallbackCopy(json, btn);
+}
 
+function fallbackCopy(json, btn) {
+  var text = '/applysettings ' + json;
+  var tip  = document.getElementById('copyTip');
   function onCopied() {
     btn.className = 'btn-sav saved';
     btn.textContent = '✓ Скопировано!';
@@ -431,13 +452,10 @@ function saveSettings() {
     setTimeout(function() {
       btn.className = 'btn-sav'; btn.textContent = '✓ Сохранить';
       tip.style.display = 'none';
-    }, 4000);
+    }, 5000);
   }
-
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(onCopied).catch(function() {
-      execCopy(text); onCopied();
-    });
+    navigator.clipboard.writeText(text).then(onCopied).catch(function() { execCopy(text); onCopied(); });
   } else {
     execCopy(text); onCopied();
   }
