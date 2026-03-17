@@ -27,8 +27,8 @@ def load_env():
                     os.environ[k] = v
 load_env()
 
-BOT_TOKEN  = os.getenv("BOT_TOKEN", "6858617006:AAGM9fJ42gcfrmEKDgosWo6VwdEE5q02eYE")
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://frisest.github.io/subtitlebot/webapp.html")
+BOT_TOKEN  = os.getenv("BOT_TOKEN", "")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "")
 API_PORT   = int(os.getenv("API_PORT", "8765"))
 
 DOWNLOAD_DIR  = "downloads"
