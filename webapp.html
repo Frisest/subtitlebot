@@ -184,15 +184,18 @@ if (tg) { tg.ready(); tg.expand(); }
 // Показываем как открыт WebApp — для диагностики
 window.addEventListener('DOMContentLoaded', function() {
   var info = document.createElement('div');
-  info.style.cssText = 'background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#888;';
+  info.style.cssText = 'border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;';
   if (!tg) {
-    info.textContent = 'Открыто в браузере (не Telegram)';
-    info.style.borderColor = '#4a2a2a'; info.style.background = '#2a1a1a';
-  } else if (!tg.initData || tg.initData === '') {
-    info.innerHTML = '⚠️ <b style="color:#ff9900">Нет initData</b> — открыто не через Telegram или через inline кнопку. sendData не сработает. Используй Menu Button (кнопка рядом с полем ввода).';
-    info.style.borderColor = '#4a3a1a'; info.style.background = '#2a2a1a';
+    info.style.cssText += 'background:#2a1a1a;border:1px solid #4a2a2a;color:#ff6b6b;';
+    info.textContent = 'Открыто в браузере — откройте через Telegram';
+  } else if (tg.initData && tg.initData !== '') {
+    // initData есть — открыто через Menu Button или inline (sendData НЕ работает)
+    info.style.cssText += 'background:#2a2a1a;border:1px solid #4a3a1a;color:#ffb347;';
+    info.innerHTML = '⚠️ Открыто через Menu Button — sendData не работает.<br>Напиши боту <b>/settings</b> и нажми кнопку которая появится снизу.';
   } else {
-    info.innerHTML = '✅ <span style="color:#34c76f">Открыто через Telegram</span> — sendData должен работать.';
+    // initData пуст — открыто через KeyboardButton (sendData РАБОТАЕТ)
+    info.style.cssText += 'background:#1a2a1a;border:1px solid #2a4a2a;color:#34c76f;';
+    info.innerHTML = '✅ Открыто через кнопку /settings — кнопка "Сохранить" работает!';
   }
   document.body.insertBefore(info, document.body.firstChild);
 });
@@ -429,32 +432,15 @@ function saveSettings() {
   var btn = document.getElementById('btnSave');
   var json = JSON.stringify(data);
 
-  // Проверяем доступность sendData
-  if (tg && tg.sendData) {
-    // Проверяем что WebApp открыт правильно (через Menu Button)
-    var initData = tg.initData || '';
-    if (initData === '') {
-      // initData пустой — WebApp открыт не через Telegram (тест в браузере)
-      // Просто копируем команду
-      fallbackCopy(json, btn);
-      return;
-    }
+  // Если initData пуст — открыто через KeyboardButton, sendData работает
+  if (tg && (!tg.initData || tg.initData === '')) {
     try {
       tg.sendData(json);
-      // Если дошли сюда — sendData вызван, WebApp должен закрыться сам
-      // На всякий случай показываем что отправлено
-      btn.className = 'btn-sav saved';
-      btn.textContent = '✓ Отправлено!';
-      return;
-    } catch(e) {
-      // sendData бросил ошибку — скорее всего открыто через inline кнопку
-      console.error('sendData error:', e.message);
-      fallbackCopy(json, btn);
-      return;
-    }
+      return; // WebApp закроется автоматически
+    } catch(e) {}
   }
 
-  // tg недоступен — открыто в браузере
+  // Иначе — копируем команду в буфер
   fallbackCopy(json, btn);
 }
 
@@ -477,6 +463,7 @@ function fallbackCopy(json, btn) {
   }
 }
 
+
 function execCopy(text) {
   var ta = document.createElement('textarea');
   ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
@@ -491,6 +478,24 @@ loadFontsFromGithub();
 setupDrag();
 requestAnimationFrame(function() { updatePreviewSize(); });
 window.addEventListener('resize', updatePreviewSize);
+
+// Настраиваем MainButton Telegram (нативная кнопка внизу WebApp)
+// Это единственный надёжный способ sendData
+if (tg && tg.MainButton) {
+  tg.MainButton.setText('✓ Сохранить настройки');
+  tg.MainButton.show();
+  tg.MainButton.onClick(function() {
+    var data = {
+      posX:S.posX, posY:S.posY, fontSize:S.fontSize, fontWeight:S.fontWeight,
+      bgStyle:S.bgStyle, color:S.color, maxWords:S.maxWords,
+      zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName
+    };
+    tg.MainButton.setText('Сохраняю...');
+    tg.MainButton.disable();
+    tg.sendData(JSON.stringify(data));
+    // WebApp закроется автоматически после sendData
+  });
+}
 </script>
 </body>
 </html>
