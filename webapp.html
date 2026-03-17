@@ -170,11 +170,11 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
   <div class="row"><span class="rl">Снизу</span><input type="range" id="zB" min="0" max="45" value="5" oninput="onZone()"><span class="rv" id="zBv">5%</span></div>
 </div>
 
-<div id="copyTip">Команда скопирована! Закрой и вставь в чат с ботом 👇</div>
+<div id="copyTip">Скопировано! Закрой WebApp и вставь команду в чат с ботом 👇</div>
 
 <div class="bot">
   <button class="btn-rst" onclick="resetAll()">Сброс</button>
-  <button class="btn-sav" id="btnSave" onclick="saveSettings()">✓ Сохранить</button>
+  <button class="btn-sav" id="btnSave" onclick="saveSettings()">📋 Скопировать команду</button>
 </div>
 
 <script>
@@ -424,24 +424,14 @@ function resetAll() {
 
 // ── Сохранение ──────────────────────────────────────────────
 function saveSettings() {
+  // HTML кнопка — только копирует команду в буфер
+  // Основное сохранение идёт через синюю кнопку MainButton внизу экрана
   var data = {
     posX:S.posX, posY:S.posY, fontSize:S.fontSize, fontWeight:S.fontWeight,
     bgStyle:S.bgStyle, color:S.color, maxWords:S.maxWords,
     zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName
   };
-  var btn = document.getElementById('btnSave');
-  var json = JSON.stringify(data);
-
-  // Если initData пуст — открыто через KeyboardButton, sendData работает
-  if (tg && (!tg.initData || tg.initData === '')) {
-    try {
-      tg.sendData(json);
-      return; // WebApp закроется автоматически
-    } catch(e) {}
-  }
-
-  // Иначе — копируем команду в буфер
-  fallbackCopy(json, btn);
+  fallbackCopy(JSON.stringify(data), document.getElementById('btnSave'));
 }
 
 function fallbackCopy(json, btn) {
@@ -490,10 +480,8 @@ if (tg && tg.MainButton) {
       bgStyle:S.bgStyle, color:S.color, maxWords:S.maxWords,
       zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName
     };
-    tg.MainButton.setText('Сохраняю...');
-    tg.MainButton.disable();
     tg.sendData(JSON.stringify(data));
-    // WebApp закроется автоматически после sendData
+    tg.close(); // обязательно — без этого бот не получает данные!
   });
 }
 </script>
