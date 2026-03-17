@@ -119,8 +119,9 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
 <div class="section" id="fontSection">
   <div class="sec-title">Шрифт</div>
   <div id="fontList" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border);"></div>
-  <div class="row" style="border-top:1px solid var(--border);">
-    <span class="rl" style="font-size:12px;color:var(--text2);">Загрузить .ttf/.otf через /load в боте,<br>потом вставь base64 ниже</span>
+  <div style="padding:8px 14px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;">
+    <span style="font-size:12px;color:var(--text2);">Загрузи шрифт через /load в боте, затем нажми обновить</span>
+    <button onclick="refreshFonts()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--accent);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">↻ Обновить</button>
   </div>
 </div>
 
