@@ -121,7 +121,7 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
   <div id="fontList" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border);"></div>
   <div style="padding:8px 14px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;">
     <span style="font-size:12px;color:var(--text2);">Загрузи шрифт через /load в боте, затем нажми обновить</span>
-    <button onclick="refreshFonts()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--accent);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">↻ Обновить</button>
+    <button onclick="showApiPanel()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--accent);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">⚙ URL</button><button onclick="refreshFonts()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--accent);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">↻</button>
   </div>
 </div>
 
@@ -443,6 +443,37 @@ buildFontList();
 setupDrag();
 requestAnimationFrame(function(){ updatePreviewSize(); });
 window.addEventListener('resize', updatePreviewSize);
+</script>
+<div id="debugPanel" style="display:none;position:fixed;top:0;left:0;right:0;background:#1a1a1a;border-bottom:1px solid #2e2e2e;padding:10px 12px;z-index:999;font-size:12px;">
+  <div style="color:#888;margin-bottom:6px;">API URL (ngrok):</div>
+  <div style="display:flex;gap:6px;">
+    <input id="apiUrlDirect" type="text" placeholder="https://xxxx.ngrok-free.app"
+      style="flex:1;background:#242424;border:1.5px solid #2e2e2e;border-radius:6px;color:#f0f0f0;font-size:12px;padding:6px 8px;outline:none;">
+    <button onclick="saveApiUrl()" style="background:#4f9eff;border:none;color:#fff;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">OK</button>
+    <button onclick="document.getElementById('debugPanel').style.display='none'" style="background:#242424;border:1.5px solid #2e2e2e;color:#888;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;">✕</button>
+  </div>
+  <div id="apiUrlCurrent" style="color:#4f9eff;margin-top:4px;font-size:11px;"></div>
+</div>
+
+<script>
+function saveApiUrl() {
+  var url = document.getElementById('apiUrlDirect').value.trim().replace(/\/+$/, '');
+  if (!url) return;
+  localStorage.setItem('api_url', url);
+  document.getElementById('apiUrlCurrent').textContent = 'Saved: ' + url;
+  document.getElementById('debugPanel').style.display = 'none';
+  refreshFonts();
+}
+function showApiPanel() {
+  var panel = document.getElementById('debugPanel');
+  var inp   = document.getElementById('apiUrlDirect');
+  var cur   = localStorage.getItem('api_url') || '';
+  inp.value = cur;
+  document.getElementById('apiUrlCurrent').textContent = cur ? 'Current: ' + cur : 'Not set';
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+// Показываем текущий URL при загрузке в консоли
+console.log('API URL:', localStorage.getItem('api_url') || 'not set');
 </script>
 </body>
 </html>
