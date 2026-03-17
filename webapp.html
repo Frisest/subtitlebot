@@ -118,11 +118,10 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
 
 <div class="section" id="fontSection">
   <div class="sec-title">Шрифт</div>
-  <div id="fontList" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border);min-height:50px;">
-    <span style="color:var(--text2);font-size:12px;align-self:center;">Загрузка шрифтов...</span>
-  </div>
-  <div style="padding:6px 14px 10px;font-size:11px;color:var(--text2);">
-    Загрузить свой шрифт: /load в боте
+  <div id="fontList" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border);"></div>
+  <div style="padding:8px 14px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;">
+    <span style="font-size:12px;color:var(--text2);">Загрузи шрифт через /load в боте, затем нажми обновить</span>
+    <button onclick="showApiPanel()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--accent);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">⚙ URL</button><button onclick="refreshFonts()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--accent);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">↻</button>
   </div>
 </div>
 
@@ -184,39 +183,8 @@ var S = {
 
 // Шрифты — встроенные + кастомные (кастомные грузятся из бота)
 var BUILTIN_FONTS = ['Arial','Impact','Times New Roman','Courier New','Verdana','Georgia'];
-var customFonts   = [];
-
-// Загружаем fonts.json с того же хоста где лежит webapp.html
-// Файл генерируется ботом автоматически при /load
-function loadFontsJson() {
-  // URL папки где лежит webapp.html
-  var base = window.location.href.replace(/\/[^\/]*$/, '');
-  var url  = base + '/fonts.json?t=' + Date.now();
-  fetch(url)
-    .then(function(r) {
-      if (!r.ok) throw new Error('not found');
-      return r.json();
-    })
-    .then(function(data) {
-      customFonts = data.fonts || [];
-      // Регистрируем шрифты через FontFace API
-      customFonts.forEach(function(f) {
-        try {
-          var ff = new FontFace(f.name, 'url(' + f.dataUrl + ')');
-          ff.load().then(function(loaded) {
-            document.fonts.add(loaded);
-            buildFontList(); // перестроить после загрузки каждого шрифта
-          });
-        } catch(e) {}
-      });
-      buildFontList();
-    })
-    .catch(function() {
-      // fonts.json не найден — только встроенные шрифты
-      customFonts = [];
-      buildFontList();
-    });
-}
+var customFonts   = JSON.parse(localStorage.getItem('custom_fonts') || '[]');
+// Формат customFonts: [{name, dataUrl}]
 
 var PRESETS = {
   tl:{x:10,y:8},  tc:{x:50,y:8},  tr:{x:90,y:8},
@@ -471,7 +439,7 @@ function fallbackCopy(data, btn) {
 
 // ── Инициализация ────────────────────────────────────────────
 buildColors();
-loadFontsJson();  // загружаем шрифты с GitHub
+buildFontList();
 setupDrag();
 requestAnimationFrame(function(){ updatePreviewSize(); });
 window.addEventListener('resize', updatePreviewSize);
