@@ -16,11 +16,7 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Segoe
 
 .size-row { display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap; }
 .size-row label { font-size:12px; color:var(--text2); white-space:nowrap; }
-.size-row input[type=number] {
-  width:70px; background:var(--surface); border:1.5px solid var(--border);
-  border-radius:8px; color:var(--text); font-size:14px; font-weight:600;
-  padding:7px 8px; outline:none; -moz-appearance:textfield; text-align:center;
-}
+.size-row input[type=number] { width:70px; background:var(--surface); border:1.5px solid var(--border); border-radius:8px; color:var(--text); font-size:14px; font-weight:600; padding:7px 8px; outline:none; -moz-appearance:textfield; text-align:center; }
 .size-row input[type=number]::-webkit-outer-spin-button,
 .size-row input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
 .size-row input[type=number]:focus { border-color:var(--accent); }
@@ -41,28 +37,36 @@ body { background:var(--bg); color:var(--text); font-family:-apple-system,'Segoe
 .row:first-of-type { border-top:none; }
 .rl { font-size:14px; color:var(--text); flex-shrink:0; min-width:95px; }
 .rv { font-size:13px; color:var(--accent); font-weight:700; min-width:38px; text-align:right; flex-shrink:0; }
+
 input[type=range] { -webkit-appearance:none; flex:1; height:4px; border-radius:2px; background:var(--border); outline:none; cursor:pointer; }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; height:20px; border-radius:50%; background:var(--accent); border:3px solid var(--surface); box-shadow:0 0 0 2px var(--accent); }
+
 .tog { display:flex; background:var(--surface2); border-radius:8px; padding:3px; flex-shrink:0; }
 .tog button { border:none; background:none; color:var(--text2); font-size:11px; font-weight:600; padding:5px 9px; border-radius:6px; cursor:pointer; white-space:nowrap; }
 .tog button.on { background:var(--accent); color:#fff; }
+
 .colors { display:flex; gap:8px; flex-wrap:wrap; padding:10px 14px; border-top:1px solid var(--border); }
 .csw { width:30px; height:30px; border-radius:50%; border:3px solid transparent; cursor:pointer; transition:transform .12s; }
 .csw:hover { transform:scale(1.1); }
 .csw.sel { border-color:#fff; }
-.font-btn { border:1.5px solid var(--border); background:var(--surface2); color:var(--text2); border-radius:8px; padding:7px 10px; font-size:12px; cursor:pointer; transition:all .12s; white-space:nowrap; }
+
+.font-list { display:flex; gap:8px; flex-wrap:wrap; padding:10px 14px; border-top:1px solid var(--border); min-height:48px; align-items:center; }
+.font-btn { border:1.5px solid var(--border); background:var(--surface2); color:var(--text2); border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; transition:all .12s; white-space:nowrap; }
 .font-btn.on { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
+.font-loading { font-size:12px; color:var(--text2); }
+
 .pgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; padding:10px 14px; border-top:1px solid var(--border); }
 .pb { border:1.5px solid var(--border); background:var(--surface2); color:var(--text2); border-radius:8px; padding:7px 3px; font-size:10px; cursor:pointer; text-align:center; transition:all .12s; }
 .pb .ic { font-size:15px; display:block; margin-bottom:1px; }
 .pb.on { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
+
 .bot { position:fixed; bottom:0; left:0; right:0; padding:10px 12px; background:var(--bg); border-top:1px solid var(--border); display:flex; gap:8px; z-index:100; }
 .btn-rst { background:var(--surface2); border:1.5px solid var(--border); color:var(--text2); border-radius:10px; padding:12px 14px; font-size:14px; cursor:pointer; font-weight:600; }
-.btn-sav { flex:1; border:none; color:#fff; border-radius:10px; padding:12px; font-size:15px; font-weight:700; cursor:pointer; background:var(--accent); transition:background .3s,transform .1s; }
-.btn-sav:active { transform:scale(.97); }
-.btn-sav.saving { background:#f59e0b; }
-.btn-sav.saved  { background:var(--green); }
-.btn-sav.error  { background:#ef4444; }
+.btn-sav { flex:1; border:none; color:#fff; border-radius:10px; padding:12px; font-size:15px; font-weight:700; cursor:pointer; background:var(--accent); transition:background .3s; }
+.btn-sav:active { opacity:.85; }
+.btn-sav.saved { background:var(--green); }
+
+#copyTip { display:none; position:fixed; bottom:80px; left:12px; right:12px; background:#1a3a2a; border:1px solid var(--green); border-radius:10px; padding:10px 14px; font-size:13px; color:var(--green); z-index:200; text-align:center; }
 </style>
 </head>
 <body>
@@ -91,6 +95,18 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
   </div>
 </div>
 
+<!-- ШРИФТ -->
+<div class="section">
+  <div class="sec-title">Шрифт</div>
+  <div class="font-list" id="fontList">
+    <span class="font-loading">Загрузка...</span>
+  </div>
+  <div style="padding:4px 14px 10px; font-size:11px; color:var(--text2);">
+    Загрузить свой шрифт: /load в боте
+  </div>
+</div>
+
+<!-- ПОЗИЦИЯ -->
 <div class="section">
   <div class="sec-title">Позиция</div>
   <div class="pgrid">
@@ -116,15 +132,7 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
   </div>
 </div>
 
-<div class="section" id="fontSection">
-  <div class="sec-title">Шрифт</div>
-  <div id="fontList" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--border);"></div>
-  <div style="padding:8px 14px 12px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;">
-    <span style="font-size:12px;color:var(--text2);">Загрузи шрифт через /load в боте, затем нажми обновить</span>
-    <button onclick="showApiPanel()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--accent);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">⚙ URL</button><button onclick="refreshFonts()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--accent);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">↻</button>
-  </div>
-</div>
-
+<!-- СТИЛЬ -->
 <div class="section">
   <div class="sec-title">Размер и стиль</div>
   <div class="row">
@@ -147,11 +155,13 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
   </div>
 </div>
 
+<!-- ЦВЕТ -->
 <div class="section">
   <div class="sec-title">Цвет текста</div>
   <div class="colors" id="colorRow"></div>
 </div>
 
+<!-- ЗОНА -->
 <div class="section">
   <div class="sec-title">Безопасная зона</div>
   <div class="row"><span class="rl">Слева</span><input type="range" id="zL" min="0" max="45" value="5" oninput="onZone()"><span class="rv" id="zLv">5%</span></div>
@@ -160,9 +170,8 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
   <div class="row"><span class="rl">Снизу</span><input type="range" id="zB" min="0" max="45" value="5" oninput="onZone()"><span class="rv" id="zBv">5%</span></div>
 </div>
 
-<div id="copy-tip" style="display:none;position:fixed;bottom:80px;left:12px;right:12px;background:#1a3a2a;border:1px solid #34c76f;border-radius:10px;padding:10px 14px;font-size:13px;color:#34c76f;z-index:200;text-align:center;">
-  Команда скопирована! Закрой это окно и вставь в чат с ботом 👇
-</div>
+<div id="copyTip">Команда скопирована! Закрой и вставь в чат с ботом 👇</div>
+
 <div class="bot">
   <button class="btn-rst" onclick="resetAll()">Сброс</button>
   <button class="btn-sav" id="btnSave" onclick="saveSettings()">✓ Сохранить</button>
@@ -172,6 +181,7 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
 var tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
+// ── Состояние ──────────────────────────────────────────────
 var S = {
   vidW:1080, vidH:1920,
   posX:50, posY:88,
@@ -181,21 +191,53 @@ var S = {
   fontName:'Arial'
 };
 
-// Шрифты — встроенные + кастомные (кастомные грузятся из бота)
-var BUILTIN_FONTS = ['Arial','Impact','Times New Roman','Courier New','Verdana','Georgia'];
-var customFonts   = JSON.parse(localStorage.getItem('custom_fonts') || '[]');
-// Формат customFonts: [{name, dataUrl}]
-
 var PRESETS = {
   tl:{x:10,y:8},  tc:{x:50,y:8},  tr:{x:90,y:8},
   ml:{x:10,y:50}, mc:{x:50,y:50}, mr:{x:90,y:50},
   bl:{x:10,y:90}, bc:{x:50,y:88}, br:{x:90,y:90}
 };
-var PIDS = ['tl','tc','tr','ml','mc','mr','bl','bc','br'];
+var PIDS   = ['tl','tc','tr','ml','mc','mr','bl','bc','br'];
 var COLORS = ['#ffffff','#ffff00','#00ff88','#ff6b6b','#4f9eff','#ffb347','#e879f9','#000000'];
+var BUILTIN_FONTS = ['Arial','Impact','Times New Roman','Courier New','Verdana','Georgia'];
+var customFonts   = [];
+
+// ── Загрузка шрифтов с GitHub ───────────────────────────────
+function loadFontsFromGithub() {
+  var base = window.location.href.replace(/\/[^\/]*(\?.*)?$/, '');
+  var url  = base + '/fonts.json?v=' + Date.now();
+  fetch(url)
+    .then(function(r) { return r.ok ? r.json() : {fonts:[]}; })
+    .then(function(data) {
+      customFonts = data.fonts || [];
+      customFonts.forEach(function(f) {
+        try {
+          new FontFace(f.name, 'url(' + f.dataUrl + ')').load()
+            .then(function(loaded) { document.fonts.add(loaded); buildFontList(); });
+        } catch(e) {}
+      });
+      buildFontList();
+    })
+    .catch(function() { buildFontList(); });
+}
+
+function buildFontList() {
+  var container = document.getElementById('fontList');
+  container.innerHTML = '';
+  var all = BUILTIN_FONTS.slice();
+  customFonts.forEach(function(f) { if (all.indexOf(f.name) === -1) all.push(f.name); });
+  all.forEach(function(name) {
+    var btn = document.createElement('button');
+    btn.className = 'font-btn' + (name === S.fontName ? ' on' : '');
+    btn.textContent = name;
+    btn.style.fontFamily = '"' + name + '", sans-serif';
+    btn.onclick = function() { S.fontName = name; buildFontList(); render(); };
+    container.appendChild(btn);
+  });
+}
 
 // ── Превью ─────────────────────────────────────────────────
 var MAX_PH = 320;
+
 function updatePreviewSize() {
   S.vidW = parseInt(document.getElementById('vidW').value) || 1080;
   S.vidH = parseInt(document.getElementById('vidH').value) || 1920;
@@ -210,11 +252,13 @@ function updatePreviewSize() {
   box.style.height = ph + 'px';
   render();
 }
-function setSize(w,h) {
+
+function setSize(w, h) {
   document.getElementById('vidW').value = w;
   document.getElementById('vidH').value = h;
   updatePreviewSize();
 }
+
 document.getElementById('vidW').addEventListener('input', updatePreviewSize);
 document.getElementById('vidH').addEventListener('input', updatePreviewSize);
 
@@ -236,29 +280,28 @@ function render() {
   setHdl('hBL',zl,zt+zh); setHdl('hBR',zl+zw,zt+zh);
 
   var el = document.getElementById('subText');
-  var scaledFont = Math.max(8, Math.round(S.fontSize * scale));
-  el.style.fontSize   = scaledFont + 'px';
-  el.style.fontWeight  = S.fontWeight==='bold' ? '700' : '400';
+  var fs = Math.max(8, Math.round(S.fontSize * scale));
+  el.style.fontSize    = fs + 'px';
+  el.style.fontWeight  = S.fontWeight === 'bold' ? '700' : '400';
   el.style.color       = S.color;
   el.style.fontFamily  = '"' + S.fontName + '", Arial, sans-serif';
-  el.style.width      = zw + 'px';
-  el.style.left       = zl + 'px';
+  el.style.width       = zw + 'px';
+  el.style.left        = zl + 'px';
 
-  if (S.bgStyle==='box') {
-    el.style.background='rgba(0,0,0,0.65)';
-    el.style.padding=Math.round(3*scale)+'px '+Math.round(8*scale)+'px';
-    el.style.borderRadius=Math.round(4*scale)+'px';
-    el.style.textShadow='none';
-  } else if (S.bgStyle==='shadow') {
-    el.style.background='none'; el.style.padding='0'; el.style.borderRadius='0';
-    el.style.textShadow='0 0 '+Math.round(8*scale)+'px #000,0 0 '+Math.round(16*scale)+'px #000';
+  if (S.bgStyle === 'box') {
+    el.style.background = 'rgba(0,0,0,0.65)';
+    el.style.padding    = Math.round(3*scale) + 'px ' + Math.round(8*scale) + 'px';
+    el.style.borderRadius = Math.round(4*scale) + 'px';
+    el.style.textShadow = 'none';
+  } else if (S.bgStyle === 'shadow') {
+    el.style.background = 'none'; el.style.padding = '0'; el.style.borderRadius = '0';
+    el.style.textShadow = '0 0 ' + Math.round(8*scale) + 'px #000';
   } else {
-    el.style.background='none'; el.style.padding='0'; el.style.borderRadius='0';
-    var o=Math.max(1,Math.round(scale));
-    el.style.textShadow=o+'px '+o+'px 0 #000,-'+o+'px '+o+'px 0 #000,'+o+'px -'+o+'px 0 #000,-'+o+'px -'+o+'px 0 #000';
+    el.style.background = 'none'; el.style.padding = '0'; el.style.borderRadius = '0';
+    var o = Math.max(1, Math.round(scale));
+    el.style.textShadow = o+'px '+o+'px 0 #000,-'+o+'px '+o+'px 0 #000,'+o+'px -'+o+'px 0 #000,-'+o+'px -'+o+'px 0 #000';
   }
 
-  // top: центрируем по точке posY внутри зоны
   el.style.top = '0px';
   var th = el.offsetHeight;
   var ty = zt + zh*S.posY/100 - th/2;
@@ -266,214 +309,154 @@ function render() {
   el.style.top = ty + 'px';
 }
 
-function setHdl(id,x,y) {
-  var el=document.getElementById(id);
-  el.style.left=x+'px'; el.style.top=y+'px';
+function setHdl(id, x, y) {
+  var el = document.getElementById(id);
+  el.style.left = x + 'px'; el.style.top = y + 'px';
 }
 
 // ── Drag ────────────────────────────────────────────────────
 function setupDrag() {
   var cfg = [
-    {id:'hTL', fn:function(dx,dy,z0){S.zone.left=cl(z0.left+dx);   S.zone.top=cl(z0.top+dy);}},
-    {id:'hTR', fn:function(dx,dy,z0){S.zone.right=cl(z0.right-dx); S.zone.top=cl(z0.top+dy);}},
-    {id:'hBL', fn:function(dx,dy,z0){S.zone.left=cl(z0.left+dx);   S.zone.bottom=cl(z0.bottom-dy);}},
-    {id:'hBR', fn:function(dx,dy,z0){S.zone.right=cl(z0.right-dx); S.zone.bottom=cl(z0.bottom-dy);}}
+    {id:'hTL', fn:function(dx,dy,z0){ S.zone.left=cl(z0.left+dx);   S.zone.top=cl(z0.top+dy); }},
+    {id:'hTR', fn:function(dx,dy,z0){ S.zone.right=cl(z0.right-dx); S.zone.top=cl(z0.top+dy); }},
+    {id:'hBL', fn:function(dx,dy,z0){ S.zone.left=cl(z0.left+dx);   S.zone.bottom=cl(z0.bottom-dy); }},
+    {id:'hBR', fn:function(dx,dy,z0){ S.zone.right=cl(z0.right-dx); S.zone.bottom=cl(z0.bottom-dy); }}
   ];
   cfg.forEach(function(c) {
-    var el=document.getElementById(c.id), drag=false, sx,sy,z0;
-    function start(cx,cy){ drag=true; sx=cx; sy=cy; z0={left:S.zone.left,right:S.zone.right,top:S.zone.top,bottom:S.zone.bottom}; }
-    function move(cx,cy){
-      if(!drag) return;
-      var box=document.getElementById('previewBox');
-      c.fn((cx-sx)/box.offsetWidth*100,(cy-sy)/box.offsetHeight*100,z0);
+    var el = document.getElementById(c.id);
+    var drag = false, sx, sy, z0;
+    function start(cx,cy) { drag=true; sx=cx; sy=cy; z0={left:S.zone.left,right:S.zone.right,top:S.zone.top,bottom:S.zone.bottom}; }
+    function move(cx,cy) {
+      if (!drag) return;
+      var box = document.getElementById('previewBox');
+      c.fn((cx-sx)/box.offsetWidth*100, (cy-sy)/box.offsetHeight*100, z0);
       syncZone(); render();
     }
-    function end(){ drag=false; }
-    el.addEventListener('mousedown', function(e){e.preventDefault();start(e.clientX,e.clientY);});
-    el.addEventListener('touchstart',function(e){e.preventDefault();start(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
-    window.addEventListener('mousemove', function(e){move(e.clientX,e.clientY);});
-    window.addEventListener('touchmove', function(e){if(drag){e.preventDefault();move(e.touches[0].clientX,e.touches[0].clientY);}},{passive:false});
+    function end() { drag = false; }
+    el.addEventListener('mousedown',  function(e){ e.preventDefault(); start(e.clientX,e.clientY); });
+    el.addEventListener('touchstart', function(e){ e.preventDefault(); start(e.touches[0].clientX,e.touches[0].clientY); }, {passive:false});
+    window.addEventListener('mousemove',  function(e){ move(e.clientX,e.clientY); });
+    window.addEventListener('touchmove',  function(e){ if(drag){ e.preventDefault(); move(e.touches[0].clientX,e.touches[0].clientY); } }, {passive:false});
     window.addEventListener('mouseup',  end);
     window.addEventListener('touchend', end);
   });
 }
-function cl(v){return Math.max(0,Math.min(45,v));}
-function syncZone(){
-  var m={L:'left',R:'right',T:'top',B:'bottom'};
-  Object.keys(m).forEach(function(k){
-    document.getElementById('z'+k).value=Math.round(S.zone[m[k]]);
-    document.getElementById('z'+k+'v').textContent=Math.round(S.zone[m[k]])+'%';
+
+function cl(v) { return Math.max(0, Math.min(45, v)); }
+
+function syncZone() {
+  var m = {L:'left',R:'right',T:'top',B:'bottom'};
+  Object.keys(m).forEach(function(k) {
+    document.getElementById('z'+k).value = Math.round(S.zone[m[k]]);
+    document.getElementById('z'+k+'v').textContent = Math.round(S.zone[m[k]]) + '%';
   });
 }
 
 // ── Контролы ────────────────────────────────────────────────
-function onFontSize(){ S.fontSize=parseInt(document.getElementById('fontSize').value); document.getElementById('fontSizeV').textContent=S.fontSize+'px'; render(); }
-function onMaxWords(){ S.maxWords=parseInt(document.getElementById('maxWords').value); document.getElementById('maxWordsV').textContent=S.maxWords; }
-function onPosY(){ S.posY=parseInt(document.getElementById('posY').value); document.getElementById('posYv').textContent=S.posY+'%'; clearP(); render(); }
-function onPosX(){ S.posX=parseInt(document.getElementById('posX').value); document.getElementById('posXv').textContent=S.posX+'%'; clearP(); render(); }
-function onZone(){
+function onFontSize()  { S.fontSize=parseInt(document.getElementById('fontSize').value); document.getElementById('fontSizeV').textContent=S.fontSize+'px'; render(); }
+function onMaxWords()  { S.maxWords=parseInt(document.getElementById('maxWords').value); document.getElementById('maxWordsV').textContent=S.maxWords; }
+function onPosY()      { S.posY=parseInt(document.getElementById('posY').value); document.getElementById('posYv').textContent=S.posY+'%'; clearP(); render(); }
+function onPosX()      { S.posX=parseInt(document.getElementById('posX').value); document.getElementById('posXv').textContent=S.posX+'%'; clearP(); render(); }
+function onZone()      {
   S.zone.left=parseInt(document.getElementById('zL').value); S.zone.right=parseInt(document.getElementById('zR').value);
   S.zone.top=parseInt(document.getElementById('zT').value);  S.zone.bottom=parseInt(document.getElementById('zB').value);
   document.getElementById('zLv').textContent=S.zone.left+'%'; document.getElementById('zRv').textContent=S.zone.right+'%';
   document.getElementById('zTv').textContent=S.zone.top+'%';  document.getElementById('zBv').textContent=S.zone.bottom+'%';
   render();
 }
-function setFW(w){ S.fontWeight=w; document.getElementById('fw0').className=w==='normal'?'on':''; document.getElementById('fw1').className=w==='bold'?'on':''; render(); }
-function setBG(v){ S.bgStyle=v; ['none','shadow','box'].forEach(function(x,i){document.getElementById('bg'+i).className=x===v?'on':'';}); render(); }
-function clearP(){ PIDS.forEach(function(id){document.getElementById('pb-'+id).className='pb';}); }
-function setPreset(id){
-  var p=PRESETS[id]; if(!p) return;
+function setFW(w) { S.fontWeight=w; document.getElementById('fw0').className=w==='normal'?'on':''; document.getElementById('fw1').className=w==='bold'?'on':''; render(); }
+function setBG(v) { S.bgStyle=v; ['none','shadow','box'].forEach(function(x,i){ document.getElementById('bg'+i).className=x===v?'on':''; }); render(); }
+function clearP()  { PIDS.forEach(function(id){ document.getElementById('pb-'+id).className='pb'; }); }
+function setPreset(id) {
+  var p = PRESETS[id]; if (!p) return;
   S.posX=p.x; S.posY=p.y;
   document.getElementById('posX').value=S.posX; document.getElementById('posY').value=S.posY;
   document.getElementById('posXv').textContent=S.posX+'%'; document.getElementById('posYv').textContent=S.posY+'%';
   clearP(); document.getElementById('pb-'+id).className='pb on'; render();
 }
-function buildColors(){
-  var row=document.getElementById('colorRow'); row.innerHTML='';
-  COLORS.forEach(function(c){
-    var el=document.createElement('div');
-    el.className='csw'+(c===S.color?' sel':'');
-    el.style.background=c;
-    if(c==='#000000') el.style.border='3px solid #555';
-    el.onclick=function(){ S.color=c; buildColors(); render(); };
+
+function buildColors() {
+  var row = document.getElementById('colorRow'); row.innerHTML = '';
+  COLORS.forEach(function(c) {
+    var el = document.createElement('div');
+    el.className = 'csw' + (c === S.color ? ' sel' : '');
+    el.style.background = c;
+    if (c === '#000000') el.style.border = '3px solid #555';
+    el.onclick = function() { S.color = c; buildColors(); render(); };
     row.appendChild(el);
   });
 }
-function resetAll(){
-  S={vidW:1080,vidH:1920,posX:50,posY:88,fontSize:22,fontWeight:'normal',bgStyle:'none',color:'#ffffff',maxWords:5,zone:{left:5,right:5,top:5,bottom:5}};
+
+// ── Сброс ───────────────────────────────────────────────────
+function resetAll() {
+  S = {vidW:1080,vidH:1920,posX:50,posY:88,fontSize:22,fontWeight:'normal',
+       bgStyle:'none',color:'#ffffff',maxWords:5,
+       zone:{left:5,right:5,top:5,bottom:5},fontName:'Arial'};
   document.getElementById('vidW').value=1080; document.getElementById('vidH').value=1920;
   document.getElementById('fontSize').value=22; document.getElementById('fontSizeV').textContent='22px';
   document.getElementById('maxWords').value=5; document.getElementById('maxWordsV').textContent='5';
   document.getElementById('posX').value=50; document.getElementById('posY').value=88;
   document.getElementById('posXv').textContent='50%'; document.getElementById('posYv').textContent='88%';
-  S.fontName='Arial'; setFW('normal'); setBG('none'); syncZone(); buildColors(); buildFontList(); setPreset('bc');
+  setFW('normal'); setBG('none'); syncZone(); buildColors(); buildFontList(); setPreset('bc');
   updatePreviewSize();
-  var btn=document.getElementById('btnSave'); btn.className='btn-sav'; btn.textContent='✓ Сохранить';
+  var btn = document.getElementById('btnSave');
+  btn.className='btn-sav'; btn.textContent='✓ Сохранить';
 }
 
 // ── Сохранение ──────────────────────────────────────────────
-function getApiUrl() {
-  // PUBLIC_URL прописывается в webapp.html при деплое
-  // Или берётся из localStorage если пользователь вводил вручную
-  return localStorage.getItem('api_url') || window.BOT_API_URL || '';
-}
-
 function saveSettings() {
   var data = {
     posX:S.posX, posY:S.posY, fontSize:S.fontSize, fontWeight:S.fontWeight,
     bgStyle:S.bgStyle, color:S.color, maxWords:S.maxWords,
-    zone:S.zone, vidW:S.vidW, vidH:S.vidH,
-    fontName:S.fontName
+    zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName
   };
   var btn = document.getElementById('btnSave');
-  var json = JSON.stringify(data);
 
-  // sendData — единственный правильный способ для Telegram WebApp
-  // Работает ТОЛЬКО если WebApp открыт через Menu Button (не через inline кнопку)
-  if (tg && typeof tg.sendData === 'function') {
-    tg.sendData(json);
-    // sendData закрывает WebApp — если мы здесь, значит не сработало
-    // (такое бывает если открыто через inline кнопку а не Menu Button)
+  // Метод 1: sendData — работает через Menu Button, закрывает WebApp сам
+  if (tg) {
+    try {
+      tg.sendData(JSON.stringify(data));
+      return; // если дошли сюда — sendData не сработал (inline кнопка)
+    } catch(e) {}
   }
 
-  // Запасной: копируем команду в буфер и просим вставить в чат
-  fallbackCopy(data, btn);
-}
-
-function showTokenInput(data) {
-  var overlay = document.createElement('div');
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px;';
-  overlay.innerHTML =
-    '<div style="background:#1a1a1a;border:1px solid #2e2e2e;border-radius:14px;padding:20px;width:100%;max-width:320px;">' +
-    '<div style="font-size:14px;font-weight:600;margin-bottom:8px;color:#f0f0f0;">Вставь токен бота</div>' +
-    '<div style="font-size:12px;color:#888;margin-bottom:14px;">Нужен один раз. Найди в @BotFather → API Token</div>' +
-    '<input id="botTokenInput" type="text" placeholder="123456:ABC-DEF..." style="width:100%;background:#242424;border:1.5px solid #2e2e2e;border-radius:8px;color:#f0f0f0;font-size:13px;padding:10px;outline:none;margin-bottom:12px;">' +
-    '<div style="display:flex;gap:8px;">' +
-    '<button onclick="this.closest(\'div\').parentNode.parentNode.remove()" style="flex:1;background:#242424;border:1.5px solid #2e2e2e;color:#888;border-radius:8px;padding:10px;cursor:pointer;font-size:13px;">Отмена</button>' +
-    '<button id="confirmToken" style="flex:2;background:#4f9eff;border:none;color:#fff;border-radius:8px;padding:10px;cursor:pointer;font-size:13px;font-weight:700;">Сохранить</button>' +
-    '</div></div>';
-  document.body.appendChild(overlay);
-
-  document.getElementById('confirmToken').onclick = function() {
-    var token = document.getElementById('botTokenInput').value.trim();
-    if (!token) return;
-    localStorage.setItem('bot_token', token);
-    overlay.remove();
-    saveSettings();
-  };
-
-  // Подгружаем сохранённый токен если есть
-  var saved = localStorage.getItem('bot_token');
-  if (saved) document.getElementById('botTokenInput').value = saved;
-}
-
-function fallbackCopy(data, btn) {
+  // Метод 2: копируем /applysettings в буфер
   var text = '/applysettings ' + JSON.stringify(data);
-  btn.className='btn-sav saving'; btn.textContent='Копирую...';
-  function showCopied() {
-    btn.className='btn-sav saved'; btn.textContent='✓ Скопировано!';
-    // Показываем подсказку
-    var tip = document.getElementById('copy-tip');
-    if (tip) { tip.style.display='block'; }
-    setTimeout(function(){ btn.className='btn-sav'; btn.textContent='✓ Сохранить'; }, 4000);
+  var tip  = document.getElementById('copyTip');
+
+  function onCopied() {
+    btn.className = 'btn-sav saved';
+    btn.textContent = '✓ Скопировано!';
+    tip.style.display = 'block';
+    setTimeout(function() {
+      btn.className = 'btn-sav'; btn.textContent = '✓ Сохранить';
+      tip.style.display = 'none';
+    }, 4000);
   }
+
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(showCopied).catch(function(){
-      // iOS fallback
-      var ta = document.createElement('textarea');
-      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
-      document.body.appendChild(ta); ta.focus(); ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      showCopied();
+    navigator.clipboard.writeText(text).then(onCopied).catch(function() {
+      execCopy(text); onCopied();
     });
   } else {
-    var ta = document.createElement('textarea');
-    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
-    document.body.appendChild(ta); ta.focus(); ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    showCopied();
+    execCopy(text); onCopied();
   }
 }
 
-// ── Инициализация ────────────────────────────────────────────
-buildColors();
-buildFontList();
-setupDrag();
-requestAnimationFrame(function(){ updatePreviewSize(); });
-window.addEventListener('resize', updatePreviewSize);
-</script>
-<div id="debugPanel" style="display:none;position:fixed;top:0;left:0;right:0;background:#1a1a1a;border-bottom:1px solid #2e2e2e;padding:10px 12px;z-index:999;font-size:12px;">
-  <div style="color:#888;margin-bottom:6px;">API URL (ngrok):</div>
-  <div style="display:flex;gap:6px;">
-    <input id="apiUrlDirect" type="text" placeholder="https://xxxx.ngrok-free.app"
-      style="flex:1;background:#242424;border:1.5px solid #2e2e2e;border-radius:6px;color:#f0f0f0;font-size:12px;padding:6px 8px;outline:none;">
-    <button onclick="saveApiUrl()" style="background:#4f9eff;border:none;color:#fff;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;">OK</button>
-    <button onclick="document.getElementById('debugPanel').style.display='none'" style="background:#242424;border:1.5px solid #2e2e2e;color:#888;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;">✕</button>
-  </div>
-  <div id="apiUrlCurrent" style="color:#4f9eff;margin-top:4px;font-size:11px;"></div>
-</div>
+function execCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
 
-<script>
-function saveApiUrl() {
-  var url = document.getElementById('apiUrlDirect').value.trim().replace(/\/+$/, '');
-  if (!url) return;
-  localStorage.setItem('api_url', url);
-  document.getElementById('apiUrlCurrent').textContent = 'Saved: ' + url;
-  document.getElementById('debugPanel').style.display = 'none';
-  refreshFonts();
-}
-function showApiPanel() {
-  var panel = document.getElementById('debugPanel');
-  var inp   = document.getElementById('apiUrlDirect');
-  var cur   = localStorage.getItem('api_url') || '';
-  inp.value = cur;
-  document.getElementById('apiUrlCurrent').textContent = cur ? 'Current: ' + cur : 'Not set';
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-}
-// Показываем текущий URL при загрузке в консоли
-console.log('API URL:', localStorage.getItem('api_url') || 'not set');
+// ── Инициализация ───────────────────────────────────────────
+buildColors();
+loadFontsFromGithub();
+setupDrag();
+requestAnimationFrame(function() { updatePreviewSize(); });
+window.addEventListener('resize', updatePreviewSize);
 </script>
 </body>
 </html>
