@@ -149,6 +149,9 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
   <div class="row"><span class="rl">Снизу</span><input type="range" id="zB" min="0" max="45" value="5" oninput="onZone()"><span class="rv" id="zBv">5%</span></div>
 </div>
 
+<div id="copy-tip" style="display:none;position:fixed;bottom:80px;left:12px;right:12px;background:#1a3a2a;border:1px solid #34c76f;border-radius:10px;padding:10px 14px;font-size:13px;color:#34c76f;z-index:200;text-align:center;">
+  Команда скопирована! Закрой это окно и вставь в чат с ботом 👇
+</div>
 <div class="bot">
   <button class="btn-rst" onclick="resetAll()">Сброс</button>
   <button class="btn-sav" id="btnSave" onclick="saveSettings()">✓ Сохранить</button>
@@ -331,6 +334,12 @@ function resetAll(){
 }
 
 // ── Сохранение ──────────────────────────────────────────────
+function getApiUrl() {
+  // PUBLIC_URL прописывается в webapp.html при деплое
+  // Или берётся из localStorage если пользователь вводил вручную
+  return localStorage.getItem('api_url') || window.BOT_API_URL || '';
+}
+
 function saveSettings() {
   var data = {
     posX:S.posX, posY:S.posY, fontSize:S.fontSize, fontWeight:S.fontWeight,
@@ -338,51 +347,18 @@ function saveSettings() {
     zone:S.zone, vidW:S.vidW, vidH:S.vidH
   };
   var btn = document.getElementById('btnSave');
+  var json = JSON.stringify(data);
 
-  // Метод 1: sendData (работает только через Menu Button)
-  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-    try {
-      tg.sendData(JSON.stringify(data));
-      btn.className='btn-sav saved'; btn.textContent='✓ Сохранено!';
-      setTimeout(function(){ btn.className='btn-sav'; btn.textContent='✓ Сохранить'; }, 2500);
-      return;
-    } catch(e) {
-      console.log('sendData failed:', e);
-    }
+  // sendData — единственный правильный способ для Telegram WebApp
+  // Работает ТОЛЬКО если WebApp открыт через Menu Button (не через inline кнопку)
+  if (tg && typeof tg.sendData === 'function') {
+    tg.sendData(json);
+    // sendData закрывает WebApp — если мы здесь, значит не сработало
+    // (такое бывает если открыто через inline кнопку а не Menu Button)
   }
 
-  // Метод 2: отправляем через Bot API напрямую
-  var userId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
-  var botToken = document.getElementById('botTokenInput') && document.getElementById('botTokenInput').value;
-
-  if (!botToken) {
-    // Показываем поле для ввода токена
-    showTokenInput(data);
-    return;
-  }
-
-  btn.className='btn-sav saving'; btn.textContent='Сохраняю...';
-
-  var text = '/applysettings ' + JSON.stringify(data);
-  fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ chat_id: userId, text: text })
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(r){
-    if (r.ok) {
-      btn.className='btn-sav saved'; btn.textContent='✓ Сохранено!';
-      localStorage.setItem('sub_settings', JSON.stringify(data));
-    } else {
-      btn.className='btn-sav error'; btn.textContent='Ошибка!';
-    }
-    setTimeout(function(){ btn.className='btn-sav'; btn.textContent='✓ Сохранить'; }, 2500);
-  })
-  .catch(function(){
-    // Метод 3: копируем в буфер — пользователь вставит вручную
-    fallbackCopy(data, btn);
-  });
+  // Запасной: копируем команду в буфер и просим вставить в чат
+  fallbackCopy(data, btn);
 }
 
 function showTokenInput(data) {
@@ -414,28 +390,33 @@ function showTokenInput(data) {
 
 function fallbackCopy(data, btn) {
   var text = '/applysettings ' + JSON.stringify(data);
+  btn.className='btn-sav saving'; btn.textContent='Копирую...';
+  function showCopied() {
+    btn.className='btn-sav saved'; btn.textContent='✓ Скопировано!';
+    // Показываем подсказку
+    var tip = document.getElementById('copy-tip');
+    if (tip) { tip.style.display='block'; }
+    setTimeout(function(){ btn.className='btn-sav'; btn.textContent='✓ Сохранить'; }, 4000);
+  }
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(function(){
-      btn.className='btn-sav saved';
-      btn.textContent='Скопировано!';
-      alert('Настройки скопированы!\nВставь в чат с ботом и отправь.');
+    navigator.clipboard.writeText(text).then(showCopied).catch(function(){
+      // iOS fallback
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showCopied();
     });
   } else {
-    btn.className='btn-sav error';
-    btn.textContent='Ошибка связи';
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showCopied();
   }
-  setTimeout(function(){ btn.className='btn-sav'; btn.textContent='✓ Сохранить'; }, 3000);
 }
-
-// Подгружаем сохранённый токен при старте
-(function(){
-  var t = localStorage.getItem('bot_token');
-  if (t) { window._savedBotToken = t; }
-})();
-
-// Переопределяем saveSettings чтобы использовать сохранённый токен
-var _origSave = saveSettings;
-window._botToken = localStorage.getItem('bot_token') || '';
 
 // ── Инициализация ────────────────────────────────────────────
 buildColors();
