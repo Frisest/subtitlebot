@@ -6,417 +6,393 @@
 <title>Настройки субтитров</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  :root {
-    --bg: #0f0f0f;
-    --surface: #1a1a1a;
-    --surface2: #242424;
-    --border: #2e2e2e;
-    --accent: #4f9eff;
-    --accent2: #7b61ff;
-    --text: #f0f0f0;
-    --text2: #888;
-    --danger: #ff5c5c;
-    --success: #4ecf8a;
-    --radius: 12px;
-  }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface2: #242424;
+  --border: #2e2e2e;
+  --accent: #4f9eff;
+  --text: #f0f0f0;
+  --text2: #888;
+  --radius: 12px;
+}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
-    font-size: 15px;
-    padding: 12px 12px 100px;
-    min-height: 100vh;
-  }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  padding: 12px 12px 100px;
+}
 
-  /* ---------- PREVIEW ---------- */
-  .preview-wrap {
-    position: relative;
-    background: #000;
-    border-radius: var(--radius);
-    overflow: hidden;
-    margin-bottom: 16px;
-    aspect-ratio: 9/16;
-    max-height: 340px;
-    width: 100%;
-  }
+/* РАЗМЕР ВИДЕО */
+.size-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.size-row label {
+  font-size: 12px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.size-row input[type=number] {
+  width: 72px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 7px 10px;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.size-row input[type=number]::-webkit-outer-spin-button,
+.size-row input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+.size-row input[type=number]:focus { border-color: var(--accent); }
+.size-sep { color: var(--text2); font-size: 18px; }
+.size-hint { font-size: 11px; color: var(--text2); margin-left: auto; }
 
-  .preview-bg {
-    width: 100%; height: 100%;
-    background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 13px; color: #333; letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
+/* PREVIEW */
+.preview-wrap {
+  position: relative;
+  background: #111;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 14px;
+  width: 100%;
+}
+.preview-bg {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(160deg, #1a1a2e, #0f3460);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  position: absolute;
+  top: 0; left: 0;
+}
+.preview-inner {
+  position: relative;
+  width: 100%;
+}
 
-  /* Зона безопасности субтитров */
-  #safe-zone {
-    position: absolute;
-    border: 1.5px dashed rgba(79,158,255,0.5);
-    border-radius: 4px;
-    background: rgba(79,158,255,0.04);
-    pointer-events: none;
-    transition: all 0.08s;
-  }
+#safe-zone {
+  position: absolute;
+  border: 1.5px dashed rgba(79,158,255,0.5);
+  border-radius: 4px;
+  background: rgba(79,158,255,0.04);
+  pointer-events: none;
+}
 
-  /* Превью текста субтитров */
-  #sub-preview {
-    position: absolute;
-    left: 0; right: 0;
-    text-align: center;
-    pointer-events: none;
-    transition: all 0.08s;
-    padding: 0 8px;
-  }
+#sub-preview {
+  position: absolute;
+  left: 0; right: 0;
+  text-align: center;
+  pointer-events: none;
+  padding: 0 8px;
+}
+#sub-text {
+  display: inline-block;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000;
+  line-height: 1.3;
+}
 
-  #sub-preview span {
-    display: inline-block;
-    color: #fff;
-    text-shadow:
-      1px 1px 0 #000,
-     -1px 1px 0 #000,
-      1px -1px 0 #000,
-     -1px -1px 0 #000,
-      0 2px 4px rgba(0,0,0,0.8);
-    line-height: 1.3;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
+.handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  touch-action: none;
+  cursor: grab;
+}
 
-  /* Ручки перетаскивания зоны */
-  .handle {
-    position: absolute;
-    width: 10px; height: 10px;
-    background: var(--accent);
-    border: 2px solid #fff;
-    border-radius: 50%;
-    cursor: grab;
-    transform: translate(-50%, -50%);
-    z-index: 10;
-    touch-action: none;
-  }
-  .handle:active { cursor: grabbing; transform: translate(-50%,-50%) scale(1.3); }
+/* SECTIONS */
+.section {
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+}
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text2);
+  padding: 10px 14px 6px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  gap: 12px;
+}
+.row:first-of-type { border-top: none; }
+.row-label { font-size: 14px; color: var(--text); flex-shrink: 0; min-width: 100px; }
+.row-value { font-size: 13px; color: var(--accent); font-weight: 600; min-width: 36px; text-align: right; flex-shrink: 0; }
 
-  /* ---------- SECTIONS ---------- */
-  .section {
-    background: var(--surface);
-    border-radius: var(--radius);
-    overflow: hidden;
-    margin-bottom: 10px;
-    border: 1px solid var(--border);
-  }
+/* SLIDERS */
+input[type=range] {
+  -webkit-appearance: none;
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+  box-shadow: 0 0 0 2px var(--accent);
+}
 
-  .section-title {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text2);
-    padding: 10px 14px 6px;
-  }
+/* TOGGLE */
+.toggle-wrap {
+  display: flex;
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 0;
+  flex-shrink: 0;
+}
+.toggle-wrap button {
+  border: none;
+  background: none;
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.toggle-wrap button.active { background: var(--accent); color: #fff; }
 
-  .row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px;
-    border-top: 1px solid var(--border);
-    gap: 12px;
-  }
-  .row:first-of-type { border-top: none; }
+/* COLOR */
+.color-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+.color-swatch {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.color-swatch:hover { transform: scale(1.1); }
+.color-swatch.selected { border-color: #fff; }
 
-  .row-label {
-    font-size: 14px;
-    color: var(--text);
-    flex-shrink: 0;
-    min-width: 90px;
-  }
+/* POS GRID */
+.pos-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+.pos-btn {
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  color: var(--text2);
+  border-radius: 8px;
+  padding: 8px 4px;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+.pos-btn .icon { font-size: 16px; display: block; margin-bottom: 2px; }
+.pos-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
-  .row-value {
-    font-size: 13px;
-    color: var(--accent);
-    font-weight: 600;
-    min-width: 36px;
-    text-align: right;
-    flex-shrink: 0;
-  }
-
-  /* ---------- SLIDERS ---------- */
-  input[type=range] {
-    -webkit-appearance: none;
-    appearance: none;
-    flex: 1;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--border);
-    outline: none;
-    cursor: pointer;
-  }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 20px; height: 20px;
-    border-radius: 50%;
-    background: var(--accent);
-    border: 3px solid var(--surface);
-    box-shadow: 0 0 0 2px var(--accent);
-    cursor: grab;
-  }
-  input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; }
-
-  /* ---------- TOGGLE ---------- */
-  .toggle-wrap {
-    display: flex;
-    gap: 0;
-    background: var(--surface2);
-    border-radius: 8px;
-    padding: 3px;
-    flex-shrink: 0;
-  }
-  .toggle-wrap button {
-    border: none;
-    background: none;
-    color: var(--text2);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 5px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .toggle-wrap button.active {
-    background: var(--accent);
-    color: #fff;
-  }
-
-  /* ---------- COLOR PICKER ---------- */
-  .color-row {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding: 10px 14px;
-    border-top: 1px solid var(--border);
-  }
-  .color-swatch {
-    width: 30px; height: 30px;
-    border-radius: 50%;
-    border: 3px solid transparent;
-    cursor: pointer;
-    transition: transform 0.15s;
-    flex-shrink: 0;
-  }
-  .color-swatch:hover { transform: scale(1.1); }
-  .color-swatch.selected { border-color: #fff; }
-
-  /* ---------- POSITION GRID ---------- */
-  .pos-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-    padding: 10px 14px;
-    border-top: 1px solid var(--border);
-  }
-  .pos-btn {
-    border: 1.5px solid var(--border);
-    background: var(--surface2);
-    color: var(--text2);
-    border-radius: 8px;
-    padding: 8px 4px;
-    font-size: 11px;
-    cursor: pointer;
-    text-align: center;
-    transition: all 0.15s;
-  }
-  .pos-btn:hover { border-color: var(--accent); color: var(--text); }
-  .pos-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  .pos-btn .icon { font-size: 16px; display: block; margin-bottom: 2px; }
-
-  /* ---------- RESET / SAVE ---------- */
-  .bottom-bar {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    padding: 10px 12px;
-    background: var(--bg);
-    border-top: 1px solid var(--border);
-    display: flex;
-    gap: 8px;
-    z-index: 100;
-  }
-
-  .btn-reset {
-    flex: 0 0 auto;
-    background: var(--surface2);
-    border: 1.5px solid var(--border);
-    color: var(--text2);
-    border-radius: 10px;
-    padding: 12px 16px;
-    font-size: 14px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.15s;
-  }
-  .btn-reset:hover { border-color: var(--danger); color: var(--danger); }
-
-  .btn-save {
-    flex: 1;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border: none;
-    color: #fff;
-    border-radius: 10px;
-    padding: 12px;
-    font-size: 15px;
-    font-weight: 700;
-    cursor: pointer;
-    letter-spacing: 0.02em;
-    transition: opacity 0.15s;
-  }
-  .btn-save:active { opacity: 0.85; }
-
-  .tag {
-    display: inline-block;
-    background: rgba(79,158,255,0.12);
-    color: var(--accent);
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    margin-left: 6px;
-    vertical-align: middle;
-  }
+/* BOTTOM */
+.bottom-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  z-index: 100;
+}
+.btn-reset {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  color: var(--text2);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-save {
+  flex: 1;
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
 </style>
 </head>
 <body>
 
-<!-- ПРЕВЬЮ ВИДЕО С ЗОНОЙ СУБТИТРОВ -->
-<div class="preview-wrap" id="preview">
-  <div class="preview-bg">Превью видео</div>
+<!-- РАЗМЕР ВИДЕО -->
+<div class="size-row">
+  <label>Ширина</label>
+  <input type="number" id="vidW" value="1080" min="100" max="7680" placeholder="1080">
+  <span class="size-sep">×</span>
+  <label>Высота</label>
+  <input type="number" id="vidH" value="1920" min="100" max="7680" placeholder="1920">
+  <span class="size-hint">px (формат видео)</span>
+</div>
 
-  <!-- Зона безопасности (перетаскиваемые границы) -->
-  <div id="safe-zone">
-    <div class="handle" id="h-tl"></div>
-    <div class="handle" id="h-tr"></div>
-    <div class="handle" id="h-bl"></div>
-    <div class="handle" id="h-br"></div>
-  </div>
-
-  <!-- Текст субтитра -->
-  <div id="sub-preview">
-    <span id="sub-text">Пример субтитра здесь</span>
+<!-- PREVIEW -->
+<div class="preview-wrap" id="previewWrap">
+  <div class="preview-inner" id="previewInner">
+    <div class="preview-bg">Превью</div>
+    <div id="safe-zone">
+      <div class="handle" id="h-tl"></div>
+      <div class="handle" id="h-tr"></div>
+      <div class="handle" id="h-bl"></div>
+      <div class="handle" id="h-br"></div>
+    </div>
+    <div id="sub-preview">
+      <span id="sub-text">Пример субтитра здесь</span>
+    </div>
   </div>
 </div>
 
-<!-- ПОЗИЦИЯ (быстрые пресеты) -->
+<!-- ПОЗИЦИЯ -->
 <div class="section">
   <div class="section-title">Позиция</div>
   <div class="pos-grid">
-    <button class="pos-btn" onclick="setPreset('top-left')"><span class="icon">↖</span>Лево верх</button>
-    <button class="pos-btn" onclick="setPreset('top-center')"><span class="icon">↑</span>Центр верх</button>
-    <button class="pos-btn" onclick="setPreset('top-right')"><span class="icon">↗</span>Право верх</button>
-    <button class="pos-btn" onclick="setPreset('mid-left')"><span class="icon">←</span>Лево</button>
-    <button class="pos-btn" onclick="setPreset('mid-center')"><span class="icon">·</span>Центр</button>
-    <button class="pos-btn" onclick="setPreset('mid-right')"><span class="icon">→</span>Право</button>
-    <button class="pos-btn" onclick="setPreset('bot-left')"><span class="icon">↙</span>Лево низ</button>
-    <button class="pos-btn active" id="preset-bot-center" onclick="setPreset('bot-center')"><span class="icon">↓</span>Центр низ</button>
-    <button class="pos-btn" onclick="setPreset('bot-right')"><span class="icon">↘</span>Право низ</button>
+    <button class="pos-btn" id="pb-tl" onclick="setPreset('tl')"><span class="icon">↖</span>Верх лево</button>
+    <button class="pos-btn" id="pb-tc" onclick="setPreset('tc')"><span class="icon">↑</span>Верх центр</button>
+    <button class="pos-btn" id="pb-tr" onclick="setPreset('tr')"><span class="icon">↗</span>Верх право</button>
+    <button class="pos-btn" id="pb-ml" onclick="setPreset('ml')"><span class="icon">←</span>Середина</button>
+    <button class="pos-btn" id="pb-mc" onclick="setPreset('mc')"><span class="icon">·</span>Центр</button>
+    <button class="pos-btn" id="pb-mr" onclick="setPreset('mr')"><span class="icon">→</span>Середина</button>
+    <button class="pos-btn" id="pb-bl" onclick="setPreset('bl')"><span class="icon">↙</span>Низ лево</button>
+    <button class="pos-btn active" id="pb-bc" onclick="setPreset('bc')"><span class="icon">↓</span>Низ центр</button>
+    <button class="pos-btn" id="pb-br" onclick="setPreset('br')"><span class="icon">↘</span>Низ право</button>
   </div>
 </div>
 
 <!-- РАЗМЕР И СТИЛЬ -->
 <div class="section">
   <div class="section-title">Размер и стиль</div>
-
   <div class="row">
     <span class="row-label">Размер шрифта</span>
-    <input type="range" id="fontSize" min="14" max="42" value="22" oninput="updateFont()">
+    <input type="range" id="fontSize" min="14" max="52" value="22" oninput="onFontSize()">
     <span class="row-value" id="fontSizeVal">22px</span>
   </div>
-
   <div class="row">
     <span class="row-label">Жирность</span>
     <div class="toggle-wrap">
-      <button id="fw-normal" onclick="setFontWeight('normal')" class="active">Обычный</button>
-      <button id="fw-bold" onclick="setFontWeight('bold')">Жирный</button>
+      <button id="fw-normal" class="active" onclick="setFW('normal')">Обычный</button>
+      <button id="fw-bold" onclick="setFW('bold')">Жирный</button>
     </div>
   </div>
-
   <div class="row">
     <span class="row-label">Фон текста</span>
     <div class="toggle-wrap">
-      <button id="bg-none" onclick="setBg('none')" class="active">Нет</button>
-      <button id="bg-shadow" onclick="setBg('shadow')">Тень</button>
-      <button id="bg-box" onclick="setBg('box')">Плашка</button>
+      <button id="bg-none" class="active" onclick="setBG('none')">Нет</button>
+      <button id="bg-shadow" onclick="setBG('shadow')">Тень</button>
+      <button id="bg-box" onclick="setBG('box')">Плашка</button>
     </div>
   </div>
-
   <div class="row">
     <span class="row-label">Слов в строке</span>
-    <input type="range" id="maxWords" min="2" max="8" value="5" step="1" oninput="updateMaxWords()">
+    <input type="range" id="maxWords" min="2" max="8" value="5" step="1" oninput="onMaxWords()">
     <span class="row-value" id="maxWordsVal">5</span>
   </div>
 </div>
 
-<!-- ЦВЕТ ТЕКСТА -->
+<!-- ЦВЕТ -->
 <div class="section">
   <div class="section-title">Цвет текста</div>
-  <div class="color-row" id="color-row"></div>
+  <div class="color-row" id="colorRow"></div>
 </div>
 
 <!-- ОТСТУПЫ ЗОНЫ -->
 <div class="section">
-  <div class="section-title">Отступы безопасной зоны <span class="tag">Тонкая настройка</span></div>
-
+  <div class="section-title">Безопасная зона (отступы от краёв)</div>
   <div class="row">
-    <span class="row-label">От левого края</span>
-    <input type="range" id="zoneLeft" min="0" max="40" value="5" oninput="updateZone()">
-    <span class="row-value" id="zoneLeftVal">5%</span>
+    <span class="row-label">Слева</span>
+    <input type="range" id="zL" min="0" max="40" value="5" oninput="onZone()">
+    <span class="row-value" id="zLv">5%</span>
   </div>
   <div class="row">
-    <span class="row-label">От правого края</span>
-    <input type="range" id="zoneRight" min="0" max="40" value="5" oninput="updateZone()">
-    <span class="row-value" id="zoneRightVal">5%</span>
+    <span class="row-label">Справа</span>
+    <input type="range" id="zR" min="0" max="40" value="5" oninput="onZone()">
+    <span class="row-value" id="zRv">5%</span>
   </div>
   <div class="row">
-    <span class="row-label">От верхнего края</span>
-    <input type="range" id="zoneTop" min="0" max="40" value="5" oninput="updateZone()">
-    <span class="row-value" id="zoneTopVal">5%</span>
+    <span class="row-label">Сверху</span>
+    <input type="range" id="zT" min="0" max="40" value="5" oninput="onZone()">
+    <span class="row-value" id="zTv">5%</span>
   </div>
   <div class="row">
-    <span class="row-label">От нижнего края</span>
-    <input type="range" id="zoneBottom" min="0" max="40" value="5" oninput="updateZone()">
-    <span class="row-value" id="zoneBottomVal">5%</span>
+    <span class="row-label">Снизу</span>
+    <input type="range" id="zB" min="0" max="40" value="5" oninput="onZone()">
+    <span class="row-value" id="zBv">5%</span>
   </div>
 </div>
 
-<!-- ВЕРТИКАЛЬНОЕ СМЕЩЕНИЕ -->
+<!-- ТОЧНАЯ ПОЗИЦИЯ -->
 <div class="section">
   <div class="section-title">Точная позиция</div>
   <div class="row">
     <span class="row-label">По вертикали</span>
-    <input type="range" id="posY" min="0" max="100" value="88" oninput="updatePosY()">
-    <span class="row-value" id="posYVal">88%</span>
+    <input type="range" id="posY" min="0" max="100" value="88" oninput="onPosY()">
+    <span class="row-value" id="posYv">88%</span>
   </div>
   <div class="row">
     <span class="row-label">По горизонтали</span>
-    <input type="range" id="posX" min="0" max="100" value="50" oninput="updatePosX()">
-    <span class="row-value" id="posXVal">50%</span>
+    <input type="range" id="posX" min="0" max="100" value="50" oninput="onPosX()">
+    <span class="row-value" id="posXv">50%</span>
   </div>
 </div>
 
 <div class="bottom-bar">
   <button class="btn-reset" onclick="resetAll()">Сброс</button>
-  <button class="btn-save" onclick="saveSettings()">✓ Сохранить настройки</button>
+  <button class="btn-save" onclick="saveSettings()">✓ Сохранить</button>
 </div>
 
 <script>
-const tg = window.Telegram?.WebApp;
+var tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
-// --- Состояние ---
-const state = {
+var state = {
   posX: 50, posY: 88,
   fontSize: 22,
   fontWeight: 'normal',
@@ -424,240 +400,299 @@ const state = {
   color: '#ffffff',
   maxWords: 5,
   zone: { left: 5, right: 5, top: 5, bottom: 5 },
-  preset: 'bot-center'
+  preset: 'bc',
+  vidW: 1080,
+  vidH: 1920
 };
 
-const DEFAULTS = JSON.parse(JSON.stringify(state));
-
-// --- Цвета ---
-const COLORS = [
-  { hex: '#ffffff', label: 'Белый' },
-  { hex: '#ffff00', label: 'Жёлтый' },
-  { hex: '#00ff88', label: 'Зелёный' },
-  { hex: '#ff6b6b', label: 'Красный' },
-  { hex: '#4f9eff', label: 'Синий' },
-  { hex: '#ffb347', label: 'Оранжевый' },
-  { hex: '#e879f9', label: 'Розовый' },
-  { hex: '#000000', label: 'Чёрный' },
+var COLORS = [
+  '#ffffff', '#ffff00', '#00ff88',
+  '#ff6b6b', '#4f9eff', '#ffb347',
+  '#e879f9', '#000000'
 ];
 
-function buildColorRow() {
-  const row = document.getElementById('color-row');
-  COLORS.forEach(c => {
-    const s = document.createElement('div');
-    s.className = 'color-swatch' + (c.hex === state.color ? ' selected' : '');
-    s.style.background = c.hex;
-    if (c.hex === '#000000') s.style.border = '3px solid #444';
-    s.title = c.label;
-    s.onclick = () => { state.color = c.hex; buildColorRow(); renderPreview(); };
-    row.appendChild(s);
-  });
+var PRESETS = {
+  tl: { posX: 10, posY: 8  },
+  tc: { posX: 50, posY: 8  },
+  tr: { posX: 90, posY: 8  },
+  ml: { posX: 10, posY: 50 },
+  mc: { posX: 50, posY: 50 },
+  mr: { posX: 90, posY: 50 },
+  bl: { posX: 10, posY: 88 },
+  bc: { posX: 50, posY: 88 },
+  br: { posX: 90, posY: 88 }
+};
+
+// --- Размер превью ---
+function updatePreviewSize() {
+  var w = parseInt(document.getElementById('vidW').value) || 1080;
+  var h = parseInt(document.getElementById('vidH').value) || 1920;
+  state.vidW = w;
+  state.vidH = h;
+  var inner = document.getElementById('previewInner');
+  var wrap = document.getElementById('previewWrap');
+  var maxW = wrap.offsetWidth;
+  var ratio = h / w;
+  var previewH = Math.min(maxW * ratio, 380);
+  var previewW = previewH / ratio;
+  inner.style.width = previewW + 'px';
+  inner.style.height = previewH + 'px';
+  inner.style.margin = '0 auto';
+  renderPreview();
 }
 
-// --- Рендер превью ---
+document.getElementById('vidW').addEventListener('input', updatePreviewSize);
+document.getElementById('vidH').addEventListener('input', updatePreviewSize);
+
+// --- Рендер ---
 function renderPreview() {
-  const preview = document.getElementById('preview');
-  const pw = preview.offsetWidth;
-  const ph = preview.offsetHeight;
+  var inner = document.getElementById('previewInner');
+  var pw = inner.offsetWidth;
+  var ph = inner.offsetHeight;
+  if (!pw || !ph) return;
 
-  // Безопасная зона
-  const zone = state.zone;
-  const zl = pw * zone.left / 100;
-  const zt = ph * zone.top / 100;
-  const zw = pw * (1 - zone.left/100 - zone.right/100);
-  const zh = ph * (1 - zone.top/100 - zone.bottom/100);
+  var z = state.zone;
+  var zl = pw * z.left / 100;
+  var zt = ph * z.top / 100;
+  var zw = pw * (1 - z.left / 100 - z.right / 100);
+  var zh = ph * (1 - z.top / 100 - z.bottom / 100);
 
-  const sz = document.getElementById('safe-zone');
+  var sz = document.getElementById('safe-zone');
   sz.style.left   = zl + 'px';
   sz.style.top    = zt + 'px';
   sz.style.width  = zw + 'px';
   sz.style.height = zh + 'px';
 
-  // Позиция ручек
-  positionHandles(zl, zt, zw, zh);
+  // Ручки
+  var positions = {
+    'h-tl': [zl,    zt],
+    'h-tr': [zl+zw, zt],
+    'h-bl': [zl,    zt+zh],
+    'h-br': [zl+zw, zt+zh]
+  };
+  var keys = Object.keys(positions);
+  for (var i = 0; i < keys.length; i++) {
+    var id = keys[i];
+    var el = document.getElementById(id);
+    el.style.left = positions[id][0] + 'px';
+    el.style.top  = positions[id][1] + 'px';
+  }
 
   // Субтитр
-  const sub = document.getElementById('sub-preview');
-  const txt = document.getElementById('sub-text');
+  var subX = zl + zw * state.posX / 100;
+  var subY = zt + zh * state.posY / 100;
+  subY = Math.max(zt, Math.min(zt + zh - 30, subY));
 
-  const subX = zl + zw * (state.posX / 100);
-  const subY = zt + zh * (state.posY / 100);
+  var sub = document.getElementById('sub-preview');
+  sub.style.left  = zl + 'px';
+  sub.style.width = zw + 'px';
+  sub.style.top   = subY + 'px';
 
-  sub.style.left   = zl + 'px';
-  sub.style.width  = zw + 'px';
-  sub.style.top    = Math.max(zt, Math.min(zt + zh - 40, subY)) + 'px';
-
+  var txt = document.getElementById('sub-text');
   txt.style.fontSize   = state.fontSize + 'px';
   txt.style.fontWeight = state.fontWeight === 'bold' ? '700' : '400';
   txt.style.color      = state.color;
 
-  if (state.bgStyle === 'none') {
-    txt.style.background  = 'none';
-    txt.style.padding     = '0';
-    txt.style.borderRadius = '0';
-    txt.style.textShadow  = '1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000,0 2px 6px rgba(0,0,0,0.9)';
-  } else if (state.bgStyle === 'shadow') {
-    txt.style.background  = 'none';
-    txt.style.padding     = '0';
-    txt.style.borderRadius = '0';
-    txt.style.textShadow  = '0 0 8px #000,0 0 16px #000,0 2px 4px #000';
-  } else {
-    txt.style.background  = 'rgba(0,0,0,0.65)';
-    txt.style.padding     = '3px 8px';
+  if (state.bgStyle === 'box') {
+    txt.style.background   = 'rgba(0,0,0,0.65)';
+    txt.style.padding      = '3px 8px';
     txt.style.borderRadius = '4px';
-    txt.style.textShadow  = 'none';
+    txt.style.textShadow   = 'none';
+  } else if (state.bgStyle === 'shadow') {
+    txt.style.background   = 'none';
+    txt.style.padding      = '0';
+    txt.style.borderRadius = '0';
+    txt.style.textShadow   = '0 0 8px #000, 0 0 16px #000';
+  } else {
+    txt.style.background   = 'none';
+    txt.style.padding      = '0';
+    txt.style.borderRadius = '0';
+    txt.style.textShadow   = '1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000';
   }
 }
 
-// --- Ручки зоны безопасности ---
-function positionHandles(zl, zt, zw, zh) {
-  const h = { tl: [zl, zt], tr: [zl+zw, zt], bl: [zl, zt+zh], br: [zl+zw, zt+zh] };
-  Object.entries(h).forEach(([id, [x, y]]) => {
-    const el = document.getElementById('h-' + id);
-    el.style.left = x + 'px';
-    el.style.top  = y + 'px';
-  });
-}
+// --- Перетаскивание ручек ---
+function setupDrag() {
+  var handles = ['tl', 'tr', 'bl', 'br'];
+  for (var i = 0; i < handles.length; i++) {
+    (function(hid) {
+      var el = document.getElementById('h-' + hid);
+      var dragging = false;
+      var startX, startY, startZone;
 
-// Перетаскивание ручек зоны
-function setupHandleDrag() {
-  const preview = document.getElementById('preview');
-  ['tl','tr','bl','br'].forEach(id => {
-    const el = document.getElementById('h-' + id);
-    let dragging = false, startX, startY, startZone;
+      function start(cx, cy) {
+        dragging = true;
+        startX = cx; startY = cy;
+        startZone = {
+          left:   state.zone.left,
+          right:  state.zone.right,
+          top:    state.zone.top,
+          bottom: state.zone.bottom
+        };
+      }
 
-    const onStart = (cx, cy) => {
-      dragging = true;
-      startX = cx; startY = cy;
-      startZone = {...state.zone};
-    };
-    const onMove = (cx, cy) => {
-      if (!dragging) return;
-      const pw = preview.offsetWidth, ph = preview.offsetHeight;
-      const dx = (cx - startX) / pw * 100;
-      const dy = (cy - startY) / ph * 100;
-      const z = state.zone;
-      if (id === 'tl') { z.left = Math.max(0, Math.min(40, startZone.left + dx)); z.top = Math.max(0, Math.min(40, startZone.top + dy)); }
-      if (id === 'tr') { z.right = Math.max(0, Math.min(40, startZone.right - dx)); z.top = Math.max(0, Math.min(40, startZone.top + dy)); }
-      if (id === 'bl') { z.left = Math.max(0, Math.min(40, startZone.left + dx)); z.bottom = Math.max(0, Math.min(40, startZone.bottom - dy)); }
-      if (id === 'br') { z.right = Math.max(0, Math.min(40, startZone.right - dx)); z.bottom = Math.max(0, Math.min(40, startZone.bottom - dy)); }
-      syncZoneSliders();
-      renderPreview();
-    };
-    const onEnd = () => { dragging = false; };
+      function move(cx, cy) {
+        if (!dragging) return;
+        var inner = document.getElementById('previewInner');
+        var pw = inner.offsetWidth;
+        var ph = inner.offsetHeight;
+        var dx = (cx - startX) / pw * 100;
+        var dy = (cy - startY) / ph * 100;
 
-    el.addEventListener('mousedown', e => { e.preventDefault(); onStart(e.clientX, e.clientY); });
-    el.addEventListener('touchstart', e => { e.preventDefault(); onStart(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
-    window.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
-    window.addEventListener('touchmove', e => { if(dragging) { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); } }, {passive:false});
-    window.addEventListener('mouseup', onEnd);
-    window.addEventListener('touchend', onEnd);
-  });
+        if (hid === 'tl') {
+          state.zone.left = Math.max(0, Math.min(40, startZone.left + dx));
+          state.zone.top  = Math.max(0, Math.min(40, startZone.top  + dy));
+        } else if (hid === 'tr') {
+          state.zone.right = Math.max(0, Math.min(40, startZone.right - dx));
+          state.zone.top   = Math.max(0, Math.min(40, startZone.top   + dy));
+        } else if (hid === 'bl') {
+          state.zone.left   = Math.max(0, Math.min(40, startZone.left   + dx));
+          state.zone.bottom = Math.max(0, Math.min(40, startZone.bottom - dy));
+        } else {
+          state.zone.right  = Math.max(0, Math.min(40, startZone.right  - dx));
+          state.zone.bottom = Math.max(0, Math.min(40, startZone.bottom - dy));
+        }
+        syncZoneSliders();
+        renderPreview();
+      }
+
+      function end() { dragging = false; }
+
+      el.addEventListener('mousedown',  function(e) { e.preventDefault(); start(e.clientX, e.clientY); });
+      el.addEventListener('touchstart', function(e) { e.preventDefault(); start(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+      window.addEventListener('mousemove',  function(e) { move(e.clientX, e.clientY); });
+      window.addEventListener('touchmove',  function(e) { if (dragging) { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: false });
+      window.addEventListener('mouseup',    end);
+      window.addEventListener('touchend',   end);
+    })(handles[i]);
+  }
 }
 
 function syncZoneSliders() {
-  const z = state.zone;
-  ['left','right','top','bottom'].forEach(k => {
-    const sl = document.getElementById('zone' + k.charAt(0).toUpperCase() + k.slice(1));
-    const vl = document.getElementById('zone' + k.charAt(0).toUpperCase() + k.slice(1) + 'Val');
-    if (sl) { sl.value = Math.round(z[k]); vl.textContent = Math.round(z[k]) + '%'; }
-  });
+  document.getElementById('zL').value = Math.round(state.zone.left);
+  document.getElementById('zR').value = Math.round(state.zone.right);
+  document.getElementById('zT').value = Math.round(state.zone.top);
+  document.getElementById('zB').value = Math.round(state.zone.bottom);
+  document.getElementById('zLv').textContent = Math.round(state.zone.left)   + '%';
+  document.getElementById('zRv').textContent = Math.round(state.zone.right)  + '%';
+  document.getElementById('zTv').textContent = Math.round(state.zone.top)    + '%';
+  document.getElementById('zBv').textContent = Math.round(state.zone.bottom) + '%';
 }
 
-// --- Слайдеры и контролы ---
-function updateFont() {
-  state.fontSize = +document.getElementById('fontSize').value;
+// --- Обработчики ---
+function onFontSize() {
+  state.fontSize = parseInt(document.getElementById('fontSize').value);
   document.getElementById('fontSizeVal').textContent = state.fontSize + 'px';
   renderPreview();
 }
-function updateMaxWords() {
-  state.maxWords = +document.getElementById('maxWords').value;
+
+function onMaxWords() {
+  state.maxWords = parseInt(document.getElementById('maxWords').value);
   document.getElementById('maxWordsVal').textContent = state.maxWords;
 }
-function updatePosY() {
-  state.posY = +document.getElementById('posY').value;
-  document.getElementById('posYVal').textContent = state.posY + '%';
-  renderPreview();
-}
-function updatePosX() {
-  state.posX = +document.getElementById('posX').value;
-  document.getElementById('posXVal').textContent = state.posX + '%';
-  renderPreview();
-}
-function updateZone() {
-  state.zone.left   = +document.getElementById('zoneLeft').value;
-  state.zone.right  = +document.getElementById('zoneRight').value;
-  state.zone.top    = +document.getElementById('zoneTop').value;
-  state.zone.bottom = +document.getElementById('zoneBottom').value;
-  document.getElementById('zoneLeftVal').textContent   = state.zone.left + '%';
-  document.getElementById('zoneRightVal').textContent  = state.zone.right + '%';
-  document.getElementById('zoneTopVal').textContent    = state.zone.top + '%';
-  document.getElementById('zoneBottomVal').textContent = state.zone.bottom + '%';
+
+function onPosY() {
+  state.posY = parseInt(document.getElementById('posY').value);
+  document.getElementById('posYv').textContent = state.posY + '%';
   renderPreview();
 }
 
-function setFontWeight(w) {
+function onPosX() {
+  state.posX = parseInt(document.getElementById('posX').value);
+  document.getElementById('posXv').textContent = state.posX + '%';
+  renderPreview();
+}
+
+function onZone() {
+  state.zone.left   = parseInt(document.getElementById('zL').value);
+  state.zone.right  = parseInt(document.getElementById('zR').value);
+  state.zone.top    = parseInt(document.getElementById('zT').value);
+  state.zone.bottom = parseInt(document.getElementById('zB').value);
+  document.getElementById('zLv').textContent = state.zone.left   + '%';
+  document.getElementById('zRv').textContent = state.zone.right  + '%';
+  document.getElementById('zTv').textContent = state.zone.top    + '%';
+  document.getElementById('zBv').textContent = state.zone.bottom + '%';
+  renderPreview();
+}
+
+function setFW(w) {
   state.fontWeight = w;
-  document.getElementById('fw-normal').classList.toggle('active', w === 'normal');
-  document.getElementById('fw-bold').classList.toggle('active', w === 'bold');
-  renderPreview();
-}
-function setBg(v) {
-  state.bgStyle = v;
-  ['none','shadow','box'].forEach(x => document.getElementById('bg-'+x).classList.toggle('active', x === v));
+  document.getElementById('fw-normal').className = w === 'normal' ? 'active' : '';
+  document.getElementById('fw-bold').className   = w === 'bold'   ? 'active' : '';
   renderPreview();
 }
 
-// --- Пресеты позиции ---
-const PRESETS = {
-  'top-left':    { posX: 10, posY: 5 },
-  'top-center':  { posX: 50, posY: 5 },
-  'top-right':   { posX: 90, posY: 5 },
-  'mid-left':    { posX: 10, posY: 50 },
-  'mid-center':  { posX: 50, posY: 50 },
-  'mid-right':   { posX: 90, posY: 50 },
-  'bot-left':    { posX: 10, posY: 88 },
-  'bot-center':  { posX: 50, posY: 88 },
-  'bot-right':   { posX: 90, posY: 88 },
-};
+function setBG(v) {
+  state.bgStyle = v;
+  document.getElementById('bg-none').className   = v === 'none'   ? 'active' : '';
+  document.getElementById('bg-shadow').className = v === 'shadow' ? 'active' : '';
+  document.getElementById('bg-box').className    = v === 'box'    ? 'active' : '';
+  renderPreview();
+}
 
 function setPreset(id) {
-  const p = PRESETS[id];
-  state.posX = p.posX; state.posY = p.posY;
+  var p = PRESETS[id];
+  if (!p) return;
+  state.posX = p.posX;
+  state.posY = p.posY;
   state.preset = id;
-  document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('active'));
-  event.currentTarget.classList.add('active');
   document.getElementById('posX').value = state.posX;
   document.getElementById('posY').value = state.posY;
-  document.getElementById('posXVal').textContent = state.posX + '%';
-  document.getElementById('posYVal').textContent = state.posY + '%';
+  document.getElementById('posXv').textContent = state.posX + '%';
+  document.getElementById('posYv').textContent = state.posY + '%';
+  var pids = ['tl','tc','tr','ml','mc','mr','bl','bc','br'];
+  for (var i = 0; i < pids.length; i++) {
+    var btn = document.getElementById('pb-' + pids[i]);
+    btn.className = 'pos-btn' + (pids[i] === id ? ' active' : '');
+  }
   renderPreview();
 }
 
-// --- Сброс ---
+function buildColors() {
+  var row = document.getElementById('colorRow');
+  row.innerHTML = '';
+  for (var i = 0; i < COLORS.length; i++) {
+    (function(c) {
+      var s = document.createElement('div');
+      s.className = 'color-swatch' + (c === state.color ? ' selected' : '');
+      s.style.background = c;
+      if (c === '#000000') s.style.border = '3px solid #444';
+      s.onclick = function() {
+        state.color = c;
+        buildColors();
+        renderPreview();
+      };
+      row.appendChild(s);
+    })(COLORS[i]);
+  }
+}
+
 function resetAll() {
-  Object.assign(state, JSON.parse(JSON.stringify(DEFAULTS)));
-  document.getElementById('fontSize').value  = state.fontSize;
-  document.getElementById('fontSizeVal').textContent = state.fontSize + 'px';
-  document.getElementById('maxWords').value  = state.maxWords;
-  document.getElementById('maxWordsVal').textContent = state.maxWords;
-  document.getElementById('posX').value = state.posX;
-  document.getElementById('posY').value = state.posY;
-  document.getElementById('posXVal').textContent = state.posX + '%';
-  document.getElementById('posYVal').textContent = state.posY + '%';
-  setFontWeight('normal');
-  setBg('none');
+  state.posX = 50; state.posY = 88;
+  state.fontSize = 22; state.fontWeight = 'normal';
+  state.bgStyle = 'none'; state.color = '#ffffff';
+  state.maxWords = 5;
+  state.zone = { left: 5, right: 5, top: 5, bottom: 5 };
+  state.preset = 'bc';
+
+  document.getElementById('fontSize').value = 22;
+  document.getElementById('fontSizeVal').textContent = '22px';
+  document.getElementById('maxWords').value = 5;
+  document.getElementById('maxWordsVal').textContent = '5';
+  document.getElementById('posX').value = 50;
+  document.getElementById('posY').value = 88;
+  document.getElementById('posXv').textContent = '50%';
+  document.getElementById('posYv').textContent = '88%';
+
+  setFW('normal');
+  setBG('none');
   syncZoneSliders();
-  document.getElementById('color-row').innerHTML = '';
-  buildColorRow();
-  document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector('[onclick="setPreset(\'bot-center\')"]').classList.add('active');
-  renderPreview();
+  buildColors();
+  setPreset('bc');
 }
 
-// --- Сохранение --- отправляем данные боту
 function saveSettings() {
-  const data = {
+  var data = {
     posX:       state.posX,
     posY:       state.posY,
     fontSize:   state.fontSize,
@@ -666,22 +701,22 @@ function saveSettings() {
     color:      state.color,
     maxWords:   state.maxWords,
     zone:       state.zone,
+    vidW:       state.vidW,
+    vidH:       state.vidH
   };
-
   if (tg) {
     tg.sendData(JSON.stringify(data));
   } else {
-    // Для теста в браузере
-    alert('Сохранено: ' + JSON.stringify(data, null, 2));
+    alert(JSON.stringify(data, null, 2));
   }
 }
 
 // --- Инициализация ---
-buildColorRow();
-setupHandleDrag();
-// Ждём layout чтобы размеры были известны
-requestAnimationFrame(() => { renderPreview(); });
-window.addEventListener('resize', renderPreview);
+buildColors();
+setupDrag();
+requestAnimationFrame(function() {
+  updatePreviewSize();
+});
 </script>
 </body>
 </html>
