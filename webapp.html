@@ -267,7 +267,7 @@ function buildFontList() {
     btn.className = 'font-btn' + (name === S.fontName ? ' on' : '');
     btn.textContent = name;
     btn.style.fontFamily = '"' + name + '", sans-serif';
-    btn.onclick = function() { S.fontName = name; buildFontList(); render(); };
+    btn.onclick = function() { S.fontName = name; buildFontList(); render(); saveToStorage(); };
     container.appendChild(btn);
   });
 }
@@ -410,10 +410,10 @@ function syncZone() {
 }
 
 // ── Контролы ────────────────────────────────────────────────
-function onFontSize()  { S.fontSize=parseInt(document.getElementById('fontSize').value); document.getElementById('fontSizeV').textContent=S.fontSize+'px'; render(); }
-function onMaxWords()  { S.maxWords=parseInt(document.getElementById('maxWords').value); document.getElementById('maxWordsV').textContent=S.maxWords; }
-function onPosY()      { S.posY=parseInt(document.getElementById('posY').value); document.getElementById('posYv').textContent=S.posY+'%'; clearP(); render(); }
-function onPosX()      { S.posX=parseInt(document.getElementById('posX').value); document.getElementById('posXv').textContent=S.posX+'%'; clearP(); render(); }
+function onFontSize()  { S.fontSize=parseInt(document.getElementById('fontSize').value); document.getElementById('fontSizeV').textContent=S.fontSize+'px'; render(); saveToStorage(); }
+function onMaxWords()  { S.maxWords=parseInt(document.getElementById('maxWords').value); document.getElementById('maxWordsV').textContent=S.maxWords; saveToStorage(); }
+function onPosY()      { S.posY=parseInt(document.getElementById('posY').value); document.getElementById('posYv').textContent=S.posY+'%'; clearP(); render(); saveToStorage(); }
+function onPosX()      { S.posX=parseInt(document.getElementById('posX').value); document.getElementById('posXv').textContent=S.posX+'%'; clearP(); render(); saveToStorage(); }
 function onZone()      {
   S.zone.left=parseInt(document.getElementById('zL').value); S.zone.right=parseInt(document.getElementById('zR').value);
   S.zone.top=parseInt(document.getElementById('zT').value);  S.zone.bottom=parseInt(document.getElementById('zB').value);
@@ -436,7 +436,7 @@ function onBgOpacity() {
   document.getElementById('bgOpacityV').textContent = S.bgOpacity + '%';
   render();
 }
-function setFW(w) { S.fontWeight=w; document.getElementById('fw0').className=w==='normal'?'on':''; document.getElementById('fw1').className=w==='bold'?'on':''; render(); }
+function setFW(w) { S.fontWeight=w; document.getElementById('fw0').className=w==='normal'?'on':''; document.getElementById('fw1').className=w==='bold'?'on':''; render(); saveToStorage(); }
 function setBG(v) {
   S.bgStyle = v;
   ['none','shadow','box'].forEach(function(x,i){ document.getElementById('bg'+i).className = x===v ? 'on' : ''; });
@@ -460,7 +460,7 @@ function buildColors() {
     el.className = 'csw' + (c === S.color ? ' sel' : '');
     el.style.background = c;
     if (c === '#000000') el.style.border = '3px solid #555';
-    el.onclick = function() { S.color = c; buildColors(); render(); };
+    el.onclick = function() { S.color = c; buildColors(); render(); saveToStorage(); };
     row.appendChild(el);
   });
 }
@@ -491,7 +491,7 @@ function saveSettings() {
     posX:S.posX, posY:S.posY, fontSize:S.fontSize, fontWeight:S.fontWeight,
     bgStyle:S.bgStyle, color:S.color, maxWords:S.maxWords,
     zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName,
-    shadowStrength:S.shadowStrength, bgOpacity:S.bgOpacity, outlineWidth:S.outlineWidth
+    /* handled by getSettingsData() */
   };
   fallbackCopy(JSON.stringify(data), document.getElementById('btnSave'));
 }
@@ -524,60 +524,70 @@ function execCopy(text) {
   document.body.removeChild(ta);
 }
 
-// ── Инициализация ───────────────────────────────────────────
-// Загружаем сохранённые настройки из URL параметра ?s=JSON
-(function() {
+// ── Сохранение/загрузка настроек через localStorage ─────────
+var LS_KEY = 'subtitle_settings_v2';
+
+function saveToStorage() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch(e) {}
+}
+
+function loadFromStorage() {
+  // Сначала пробуем URL параметр (бот передаёт актуальные настройки)
+  var loaded = null;
   try {
     var params = new URLSearchParams(window.location.search);
     var raw = params.get('s');
-    if (raw) {
-      var saved = JSON.parse(decodeURIComponent(raw));
-      // Применяем каждое поле если оно есть
-      var fields = ['posX','posY','fontSize','fontWeight','bgStyle','color',
-                    'maxWords','fontName','shadowStrength','bgOpacity','outlineWidth',
-                    'vidW','vidH'];
-      fields.forEach(function(k) {
-        if (saved[k] !== undefined) S[k] = saved[k];
-      });
-      if (saved.zone) S.zone = saved.zone;
-      // Синхронизируем UI с загруженными значениями
-      if (saved.vidW) document.getElementById('vidW').value = saved.vidW;
-      if (saved.vidH) document.getElementById('vidH').value = saved.vidH;
-      if (saved.fontSize) {
-        document.getElementById('fontSize').value = saved.fontSize;
-        document.getElementById('fontSizeV').textContent = saved.fontSize + 'px';
-      }
-      if (saved.maxWords) {
-        document.getElementById('maxWords').value = saved.maxWords;
-        document.getElementById('maxWordsV').textContent = saved.maxWords;
-      }
-      if (saved.posX !== undefined) {
-        document.getElementById('posX').value = saved.posX;
-        document.getElementById('posXv').textContent = saved.posX + '%';
-      }
-      if (saved.posY !== undefined) {
-        document.getElementById('posY').value = saved.posY;
-        document.getElementById('posYv').textContent = saved.posY + '%';
-      }
-      if (saved.shadowStrength) {
-        document.getElementById('shadowStrength').value = saved.shadowStrength;
-        document.getElementById('shadowStrengthV').textContent = saved.shadowStrength;
-      }
-      if (saved.bgOpacity) {
-        document.getElementById('bgOpacity').value = saved.bgOpacity;
-        document.getElementById('bgOpacityV').textContent = saved.bgOpacity + '%';
-      }
-      if (saved.outlineWidth !== undefined) {
-        document.getElementById('outlineWidth').value = saved.outlineWidth;
-        document.getElementById('outlineWidthV').textContent = saved.outlineWidth;
-      }
-      if (saved.fontWeight) setFW(saved.fontWeight);
-      if (saved.bgStyle)    setBG(saved.bgStyle);
-      if (saved.zone)       syncZone();
-    }
-  } catch(e) { console.log('Settings load error:', e); }
-})();
+    if (raw) loaded = JSON.parse(decodeURIComponent(raw));
+  } catch(e) {}
 
+  // Если нет в URL — берём из localStorage
+  if (!loaded) {
+    try {
+      var ls = localStorage.getItem(LS_KEY);
+      if (ls) loaded = JSON.parse(ls);
+    } catch(e) {}
+  }
+
+  if (!loaded) return;
+
+  // Применяем настройки к S
+  var fields = ['posX','posY','fontSize','fontWeight','bgStyle','color',
+                'maxWords','fontName','shadowStrength','bgOpacity','outlineWidth',
+                'vidW','vidH'];
+  fields.forEach(function(k) {
+    if (loaded[k] !== undefined) S[k] = loaded[k];
+  });
+  if (loaded.zone) S.zone = loaded.zone;
+
+  // Синхронизируем все контролы
+  function setEl(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.value = val;
+  }
+  function setTxt(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
+  setEl('vidW', S.vidW); setEl('vidH', S.vidH);
+  setEl('fontSize', S.fontSize); setTxt('fontSizeV', S.fontSize + 'px');
+  setEl('maxWords', S.maxWords); setTxt('maxWordsV', S.maxWords);
+  setEl('posX', S.posX); setTxt('posXv', S.posX + '%');
+  setEl('posY', S.posY); setTxt('posYv', S.posY + '%');
+  setEl('shadowStrength', S.shadowStrength);
+  setTxt('shadowStrengthV', S.shadowStrength);
+  setEl('bgOpacity', S.bgOpacity);
+  setTxt('bgOpacityV', S.bgOpacity + '%');
+  setEl('outlineWidth', S.outlineWidth);
+  setTxt('outlineWidthV', S.outlineWidth);
+
+  setFW(S.fontWeight);
+  setBG(S.bgStyle);
+  syncZone();
+}
+
+// ── Инициализация ───────────────────────────────────────────
+loadFromStorage();
 buildColors();
 loadFontsFromGithub();
 setupDrag();
@@ -590,13 +600,9 @@ if (tg && tg.MainButton) {
   tg.MainButton.setText('✓ Сохранить настройки');
   tg.MainButton.show();
   tg.MainButton.onClick(function() {
-    var data = {
-      posX:S.posX, posY:S.posY, fontSize:S.fontSize, fontWeight:S.fontWeight,
-      bgStyle:S.bgStyle, color:S.color, maxWords:S.maxWords,
-      zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName
-    };
-    tg.sendData(JSON.stringify(data));
-    tg.close(); // обязательно — без этого бот не получает данные!
+    saveToStorage();
+    tg.sendData(JSON.stringify(getSettingsData()));
+    tg.close();
   });
 }
 </script>
