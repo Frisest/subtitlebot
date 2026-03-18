@@ -525,6 +525,59 @@ function execCopy(text) {
 }
 
 // ── Инициализация ───────────────────────────────────────────
+// Загружаем сохранённые настройки из URL параметра ?s=JSON
+(function() {
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var raw = params.get('s');
+    if (raw) {
+      var saved = JSON.parse(decodeURIComponent(raw));
+      // Применяем каждое поле если оно есть
+      var fields = ['posX','posY','fontSize','fontWeight','bgStyle','color',
+                    'maxWords','fontName','shadowStrength','bgOpacity','outlineWidth',
+                    'vidW','vidH'];
+      fields.forEach(function(k) {
+        if (saved[k] !== undefined) S[k] = saved[k];
+      });
+      if (saved.zone) S.zone = saved.zone;
+      // Синхронизируем UI с загруженными значениями
+      if (saved.vidW) document.getElementById('vidW').value = saved.vidW;
+      if (saved.vidH) document.getElementById('vidH').value = saved.vidH;
+      if (saved.fontSize) {
+        document.getElementById('fontSize').value = saved.fontSize;
+        document.getElementById('fontSizeV').textContent = saved.fontSize + 'px';
+      }
+      if (saved.maxWords) {
+        document.getElementById('maxWords').value = saved.maxWords;
+        document.getElementById('maxWordsV').textContent = saved.maxWords;
+      }
+      if (saved.posX !== undefined) {
+        document.getElementById('posX').value = saved.posX;
+        document.getElementById('posXv').textContent = saved.posX + '%';
+      }
+      if (saved.posY !== undefined) {
+        document.getElementById('posY').value = saved.posY;
+        document.getElementById('posYv').textContent = saved.posY + '%';
+      }
+      if (saved.shadowStrength) {
+        document.getElementById('shadowStrength').value = saved.shadowStrength;
+        document.getElementById('shadowStrengthV').textContent = saved.shadowStrength;
+      }
+      if (saved.bgOpacity) {
+        document.getElementById('bgOpacity').value = saved.bgOpacity;
+        document.getElementById('bgOpacityV').textContent = saved.bgOpacity + '%';
+      }
+      if (saved.outlineWidth !== undefined) {
+        document.getElementById('outlineWidth').value = saved.outlineWidth;
+        document.getElementById('outlineWidthV').textContent = saved.outlineWidth;
+      }
+      if (saved.fontWeight) setFW(saved.fontWeight);
+      if (saved.bgStyle)    setBG(saved.bgStyle);
+      if (saved.zone)       syncZone();
+    }
+  } catch(e) { console.log('Settings load error:', e); }
+})();
+
 buildColors();
 loadFontsFromGithub();
 setupDrag();

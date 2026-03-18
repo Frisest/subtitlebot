@@ -6,9 +6,10 @@ from censor import censor_segments
 
 logger = logging.getLogger(__name__)
 
-WHISPER_MODEL    = os.getenv("WHISPER_MODEL", "medium")
+WHISPER_MODEL     = os.getenv("WHISPER_MODEL", "medium")
 MAX_WORDS_PER_SUB = int(os.getenv("MAX_WORDS_PER_SUB", "5"))
 COMPRESS_THRESHOLD = 20 * 1024 * 1024
+FONTS_DIR         = "fonts"
 
 logger.info(f"Загружаю модель Whisper: {WHISPER_MODEL}...")
 model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
@@ -29,9 +30,8 @@ def compress_video(input_path: str, output_path: str, target_mb: int = 18) -> bo
     except ValueError:
         return False
 
-    target_bits  = target_mb * 8 * 1024 * 1024
-    audio_bitrate = 128 * 1024
-    video_bitrate = max(100_000, int((target_bits / duration) - audio_bitrate))
+    target_bits   = target_mb * 8 * 1024 * 1024
+    video_bitrate = max(100_000, int((target_bits / duration) - 128 * 1024))
     passlog = output_path + "_passlog"
 
     r1 = subprocess.run([
@@ -56,9 +56,8 @@ def compress_video(input_path: str, output_path: str, target_mb: int = 18) -> bo
             os.remove(p)
 
     if r2.returncode != 0:
-        logger.error(f"Сжатие не удалось: {r2.stderr[-200:]}")
+        logger.error(f"Compress error: {r2.stderr[-200:]}")
         return False
-
     logger.info(f"Сжато до {os.path.getsize(output_path)/1024/1024:.1f} МБ")
     return True
 
@@ -70,7 +69,7 @@ def extract_audio(video_path: str, audio_path: str) -> bool:
         "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", audio_path
     ], capture_output=True, text=True)
     if r.returncode != 0:
-        logger.error(f"FFmpeg audio: {r.stderr[-200:]}")
+        logger.error(f"Audio extract: {r.stderr[-200:]}")
         return False
     return True
 
@@ -92,7 +91,6 @@ def transcribe(audio_path: str) -> list[dict]:
         no_speech_threshold=0.6,
     )
     logger.info(f"Язык: {info.language} ({info.language_probability:.0%})")
-
     words = []
     for seg in segments:
         if seg.words:
@@ -104,7 +102,7 @@ def transcribe(audio_path: str) -> list[dict]:
     return words
 
 
-# ── Нарезка слов на субтитры ────────────────────────────────
+# ── Нарезка слов ────────────────────────────────────────────
 def words_to_segments(words: list[dict], max_words: int = 5) -> list[dict]:
     if not words:
         return []
@@ -134,9 +132,9 @@ def words_to_segments(words: list[dict], max_words: int = 5) -> list[dict]:
     return segments
 
 
-# ── Конвертация цвета ───────────────────────────────────────
+# ── Вспомогательные функции ─────────────────────────────────
 def hex_to_ass(hex_color: str) -> str:
-    """#RRGGBB → &H00BBGGRR (ASS формат)"""
+    """#RRGGBB → &H00BBGGRR"""
     h = hex_color.lstrip("#")
     if len(h) == 6:
         r, g, b = h[0:2], h[2:4], h[4:6]
@@ -144,9 +142,7 @@ def hex_to_ass(hex_color: str) -> str:
     return "&H00FFFFFF"
 
 
-# ── Получение размеров видео ────────────────────────────────
 def get_video_size(video_path: str) -> tuple[int, int]:
-    """Возвращает (ширину, высоту) видео через ffprobe."""
     r = subprocess.run([
         "ffprobe", "-v", "error",
         "-select_streams", "v:0",
@@ -160,79 +156,133 @@ def get_video_size(video_path: str) -> tuple[int, int]:
             return int(parts[0]), int(parts[1])
         except Exception:
             pass
-    return 1080, 1920  # fallback
+    return 1080, 1920
 
 
-# ── Генерация ASS файла ─────────────────────────────────────
-def segments_to_ass(segments: list[dict], settings: dict, vid_w: int, vid_h: int) -> str:
-    r"""
-    Генерирует ASS субтитры с точными координатами \pos(x,y).
-    Это единственный способ задать произвольную позицию в FFmpeg.
+def sanitize_font_name(name: str) -> str:
+    """Убирает проблемные символы из имени шрифта для ASS."""
+    # ASS не любит запятые и некоторые спецсимволы в имени шрифта
+    return name.replace(",", "").replace(";", "").strip()
+
+
+def find_font_file(font_name: str) -> str | None:
+    """Ищет файл шрифта в папке fonts/ по имени."""
+    if not os.path.isdir(FONTS_DIR):
+        return None
+    name_lower = font_name.lower()
+    for fname in os.listdir(FONTS_DIR):
+        if fname.lower().endswith((".ttf", ".otf")):
+            # Сравниваем имя файла без расширения
+            file_base = os.path.splitext(fname)[0].lower()
+            if file_base == name_lower or file_base in name_lower or name_lower in file_base:
+                return os.path.join(FONTS_DIR, fname)
+    return None
+
+
+def calc_position(settings: dict, vid_w: int, vid_h: int) -> tuple[float, float, int, int]:
     """
-    s         = settings or {}
-    pos_x_pct = float(s.get("posX", 50))   # % от ширины
-    pos_y_pct = float(s.get("posY", 88))   # % от высоты
-    font_size = int(s.get("fontSize", 22))
-    font_name = s.get("fontName", "Arial")
-    bold      = 1 if s.get("fontWeight") == "bold" else 0
-    color     = hex_to_ass(s.get("color", "#ffffff"))
-    bg_style  = s.get("bgStyle", "none")
-    zone      = s.get("zone", {})
+    Вычисляет координаты субтитра и отступы.
+    Возвращает (sub_x, sub_y, margin_l, margin_r).
+    """
+    s       = settings or {}
+    zone    = s.get("zone", {})
+    pos_x   = float(s.get("posX", 50))
+    pos_y   = float(s.get("posY", 88))
 
-    # Учитываем зону безопасности
-    zone_l = float(zone.get("left",   5)) / 100
-    zone_r = float(zone.get("right",  5)) / 100
-    zone_t = float(zone.get("top",    5)) / 100
-    zone_b = float(zone.get("bottom", 5)) / 100
+    zone_l  = float(zone.get("left",   5)) / 100
+    zone_r  = float(zone.get("right",  5)) / 100
+    zone_t  = float(zone.get("top",    5)) / 100
+    zone_b  = float(zone.get("bottom", 5)) / 100
 
-    # Рабочая область внутри зоны
     work_x0 = vid_w * zone_l
     work_y0 = vid_h * zone_t
     work_w  = vid_w * (1 - zone_l - zone_r)
     work_h  = vid_h * (1 - zone_t - zone_b)
 
-    # Финальные координаты субтитра в пикселях видео
-    sub_x = work_x0 + work_w * (pos_x_pct / 100)
-    sub_y = work_y0 + work_h * (pos_y_pct / 100)
+    sub_x   = work_x0 + work_w * (pos_x / 100)
+    sub_y   = work_y0 + work_h * (pos_y / 100)
 
-    # Выравнивание ASS: 1=низ-лево 2=низ-центр 3=низ-право
-    #                   4=сред-лево 5=центр 6=сред-право
-    #                   7=верх-лево 8=верх-центр 9=верх-право
-    # Используем 2 (низ-центр) — \pos задаёт точку якоря
-    alignment = 2
+    # Ограничиваем чтобы не выходило за края
+    sub_x   = max(0, min(vid_w, sub_x))
+    sub_y   = max(0, min(vid_h, sub_y))
 
-    shadow_strength = int(s.get("shadowStrength", 3))
-    bg_opacity      = int(s.get("bgOpacity", 65))
-
-    # В ASS: 00=непрозрачный, FF=полностью прозрачный
-    alpha_hex = format(int((100 - bg_opacity) / 100 * 255), '02X').upper()
-
-    if bg_style == "box":
-        back_colour = f"&H{alpha_hex}000000"  # чёрный с настраиваемой прозрачностью
-        border_style = 3
-        outline      = 0
-        shadow       = 0
-    elif bg_style == "shadow":
-        back_colour  = "&H00000000"
-        border_style = 1
-        outline      = 0
-        shadow       = shadow_strength  # 1-10
-    else:
-        back_colour  = "&H00000000"
-        border_style = 1
-        outline      = 2
-        shadow       = 1
-
-    # MarginL/R для ограничения ширины текста зоной безопасности
     margin_l = int(work_x0)
     margin_r = int(vid_w - work_x0 - work_w)
-    margin_v = 0  # вертикальный отступ — не нужен, используем \pos
+
+    return sub_x, sub_y, margin_l, margin_r
+
+
+def build_ass_style(settings: dict, font_name: str, vid_w: int, vid_h: int) -> tuple[str, str]:
+    """
+    Строит строку стиля ASS и pos_tag.
+    Возвращает (style_line, pos_tag).
+    """
+    s           = settings or {}
+    font_size   = int(s.get("fontSize", 22))
+    bold        = 1 if s.get("fontWeight") == "bold" else 0
+    color       = hex_to_ass(s.get("color", "#ffffff"))
+    bg_style    = s.get("bgStyle", "none")
+    shadow_str  = max(1, min(10, int(s.get("shadowStrength", 3))))
+    bg_opacity  = max(10, min(100, int(s.get("bgOpacity", 65))))
+    outline_w   = max(0, min(10, int(s.get("outlineWidth", 2))))
+
+    # В ASS: 00=непрозрачный, FF=прозрачный
+    alpha_hex = format(int((100 - bg_opacity) / 100 * 255), '02X').upper()
+
+    # Масштабируем outline и shadow относительно размера шрифта
+    # ASS значения — в пикселях видео, поэтому нужны реальные числа
+    scaled_outline = round(font_size * outline_w * 0.05, 1)   # 0-5px при fontSize=22
+    scaled_shadow  = round(font_size * shadow_str * 0.08, 1)  # масштабированная тень
+
+    if bg_style == "box":
+        back_colour  = f"&H{alpha_hex}000000"
+        border_style = 3
+        outline      = scaled_outline if outline_w > 0 else 0
+        shadow       = 0
+    elif bg_style == "shadow":
+        back_colour  = "&HFF000000"
+        border_style = 1
+        outline      = scaled_outline if outline_w > 0 else 0
+        shadow       = scaled_shadow
+    else:  # none — контурный текст
+        back_colour  = "&HFF000000"
+        border_style = 1
+        outline      = scaled_outline if outline_w > 0 else round(font_size * 0.08, 1)
+        shadow       = round(font_size * 0.04, 1)
+
+    sub_x, sub_y, margin_l, margin_r = calc_position(settings, vid_w, vid_h)
+
+    # Alignment 8 = верх-центр, 2 = низ-центр, 5 = центр
+    # Используем 5 (точный центр по \pos) чтобы текст не уходил за края
+    alignment = 5
+
+    pos_tag = "{\\an5\\pos(" + f"{sub_x:.0f},{sub_y:.0f}" + ")}"
+
+    safe_font = sanitize_font_name(font_name)
+    # OutlineColour &H00000000 = непрозрачный чёрный (00 = opaque в ASS)
+    # BackColour используется для плашки (BorderStyle=3)
+    style = (
+        f"Style: Default,{safe_font},{font_size},"
+        f"{color},&H00FFFFFF,&H00000000,{back_colour},"
+        f"{bold},0,0,0,100,100,0,0,"
+        f"{border_style},{outline},{shadow},"
+        f"{alignment},{margin_l},{margin_r},0,1"
+    )
+
+    return style, pos_tag
+
+
+def build_ass(segments: list[dict], settings: dict, vid_w: int, vid_h: int) -> str:
+    """Строит полный ASS файл."""
+    s         = settings or {}
+    font_name = s.get("fontName", "Arial")
+    style, pos_tag = build_ass_style(settings, font_name, vid_w, vid_h)
 
     def fmt(sec: float) -> str:
-        h   = int(sec // 3600)
-        m   = int((sec % 3600) // 60)
-        s_  = int(sec % 60)
-        cs  = int((sec % 1) * 100)  # ASS использует сотые секунды
+        h  = int(sec // 3600)
+        m  = int((sec % 3600) // 60)
+        s_ = int(sec % 60)
+        cs = int((sec % 1) * 100)
         return f"{h}:{m:02d}:{s_:02d}.{cs:02d}"
 
     lines = [
@@ -240,41 +290,19 @@ def segments_to_ass(segments: list[dict], settings: dict, vid_w: int, vid_h: int
         "ScriptType: v4.00+",
         f"PlayResX: {vid_w}",
         f"PlayResY: {vid_h}",
-        "Collisions: Normal",
+        "WrapStyle: 0",
         "",
         "[V4+ Styles]",
-        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
-        "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
-        "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        f"Style: Default,{font_name},{font_size},{color},&H00FFFFFF,&HFF000000,{back_colour},"
-        f"{bold},0,0,0,100,100,0,0,{border_style},{outline},{shadow},"
-        f"{alignment},{margin_l},{margin_r},{margin_v},1",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
+        "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
+        "Alignment, MarginL, MarginR, MarginV, Encoding",
+        style,
         "",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
 
-    # Если кастомный шрифт — добавляем его через [Fonts] секцию
-    font_path = None
-    fonts_dir = "fonts"
-    if os.path.isdir(fonts_dir):
-        for fname in os.listdir(fonts_dir):
-            if os.path.splitext(fname)[0].lower() == font_name.lower():
-                font_path = os.path.join(fonts_dir, fname)
-                break
-
-    if font_path and os.path.exists(font_path):
-        import base64
-        with open(font_path, "rb") as f_:
-            encoded = base64.b64encode(f_.read()).decode("ascii")
-        # Разбиваем на строки по 80 символов (стандарт ASS)
-        chunks = [encoded[i:i+80] for i in range(0, len(encoded), 80)]
-        lines += ["", "[Fonts]", f"fontname: {font_name}"] + chunks
-
-    lines.append("")
-
-    # Каждый субтитр с точными координатами \pos(x,y)
-    pos_tag = f"{{\\pos({sub_x:.1f},{sub_y:.1f})}}"
     for seg in segments:
         text = seg["text"].replace("\n", "\\N")
         lines.append(
@@ -284,123 +312,109 @@ def segments_to_ass(segments: list[dict], settings: dict, vid_w: int, vid_h: int
     return "\n".join(lines)
 
 
+def burn_subtitles(video_path: str, ass_path: str, output_path: str,
+                   font_name: str = "Arial") -> bool:
+    """Вшивает ASS субтитры через FFmpeg."""
+    ass_escaped = ass_path.replace("\\", "/").replace(":", "\\:")
 
+    cmd = ["ffmpeg", "-y", "-i", video_path]
 
-# ── Вшивание субтитров ──────────────────────────────────────
-def extract_frame(video_path: str, output_path: str, time_sec: float = 1.0) -> bool:
-    """Извлекает один кадр из видео в нужный момент времени."""
-    cmd = [
-        "ffmpeg", "-y",
-        "-ss", str(time_sec),
-        "-i", video_path,
-        "-vframes", "1",
-        "-q:v", "2",
+    # Если есть кастомный шрифт — передаём папку через fontsdir
+    font_file = find_font_file(font_name)
+    if font_file:
+        # Устанавливаем FONTCONFIG через env переменную — самый надёжный способ на Windows
+        import shutil, tempfile
+        tmp_dir  = tempfile.mkdtemp()
+        font_ext = os.path.splitext(font_file)[1]
+        shutil.copy2(font_file, os.path.join(tmp_dir, "font" + font_ext))
+        env = os.environ.copy()
+        env["FONTCONFIG_PATH"] = tmp_dir
+        logger.info(f"Шрифт в FONTCONFIG_PATH: {tmp_dir}")
+    else:
+        tmp_dir = None
+        env     = None
+
+    vf = f"ass={ass_escaped}"
+
+    cmd += [
+        "-vf", vf,
+        "-c:a", "copy",
+        "-c:v", "libx264",
+        "-crf", "23",
+        "-preset", "fast",
         output_path
     ]
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    return r.returncode == 0
 
+    r = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
-def extract_frame_with_text(video_path: str, output_path: str,
-                             text: str, settings: dict) -> bool:
-    """Извлекает кадр и накладывает на него текст субтитра для превью."""
-    # Сначала достаём кадр
-    frame_path = output_path + "_raw.jpg"
-    if not extract_frame(video_path, frame_path):
+    if tmp_dir and os.path.exists(tmp_dir):
+        import shutil as _shutil
+        _shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    if r.returncode != 0:
+        logger.error(f"FFmpeg ass error: {r.stderr[-500:]}")
         return False
+    return True
 
-    s          = settings or {}
-    vid_w, vid_h = get_video_size(video_path)
-    font_size  = int(s.get("fontSize", 22))
-    font_name  = s.get("fontName", "Arial")
-    bold       = 1 if s.get("fontWeight") == "bold" else 0
-    color      = hex_to_ass(s.get("color", "#ffffff"))
-    bg_style   = s.get("bgStyle", "none")
-    shadow_strength = int(s.get("shadowStrength", 3))
-    bg_opacity = int(s.get("bgOpacity", 65))
-    alpha_hex  = format(int((100 - bg_opacity) / 100 * 255), '02X').upper()
 
-    zone   = s.get("zone", {})
-    work_x0 = vid_w * float(zone.get("left", 5)) / 100
-    work_y0 = vid_h * float(zone.get("top",  5)) / 100
-    work_w  = vid_w * (1 - float(zone.get("left",5))/100 - float(zone.get("right",5))/100)
-    work_h  = vid_h * (1 - float(zone.get("top",5))/100 - float(zone.get("bottom",5))/100)
-    sub_x   = work_x0 + work_w * float(s.get("posX", 50)) / 100
-    sub_y   = work_y0 + work_h * float(s.get("posY", 88)) / 100
-
-    if bg_style == "box":
-        back_colour = f"&H{alpha_hex}000000"
-        border_style = 3; outline = 0; shadow = 0
-    elif bg_style == "shadow":
-        back_colour = "&H00000000"
-        border_style = 1; outline = 0; shadow = shadow_strength
-    else:
-        back_colour = "&H00000000"
-        border_style = 1; outline = 2; shadow = 1
-
-    margin_l = int(work_x0)
-    margin_r = int(vid_w - work_x0 - work_w)
-    pos_tag  = "{\\pos(" + f"{sub_x:.1f},{sub_y:.1f}" + ")}"
+def render_preset_preview(output_path: str, text: str, settings: dict,
+                          width: int = 1080, height: int = 1920) -> bool:
+    """Рендерит превью субтитра на зелёном фоне без видео."""
+    s         = settings or {}
+    font_name = s.get("fontName", "Arial")
+    style, pos_tag = build_ass_style(settings, font_name, width, height)
 
     ass_lines = [
         "[Script Info]", "ScriptType: v4.00+",
-        f"PlayResX: {vid_w}", f"PlayResY: {vid_h}", "",
+        f"PlayResX: {width}", f"PlayResY: {height}", "WrapStyle: 0", "",
         "[V4+ Styles]",
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
         "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
         "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
         "Alignment, MarginL, MarginR, MarginV, Encoding",
-        f"Style: Default,{font_name},{font_size},{color},&H00FFFFFF,"
-        f"&HFF000000,{back_colour},"
-        f"{bold},0,0,0,100,100,0,0,{border_style},{outline},{shadow},"
-        f"2,{margin_l},{margin_r},0,1",
-        "", "[Events]",
+        style, "", "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
         f"Dialogue: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,,{pos_tag}{text}"
     ]
-    ass = "\n".join(ass_lines)
-
-    ass_path = output_path + "_prev.ass"
+    ass_path = output_path + ".ass"
     with open(ass_path, "w", encoding="utf-8") as f:
-        f.write(ass)
+        f.write("\n".join(ass_lines))
 
     ass_esc = ass_path.replace("\\", "/").replace(":", "\\:")
+
+    font_file = find_font_file(font_name)
+    if font_file:
+        import shutil, tempfile
+        tmp_dir  = tempfile.mkdtemp()
+        font_ext = os.path.splitext(font_file)[1]
+        shutil.copy2(font_file, os.path.join(tmp_dir, "font" + font_ext))
+        env = os.environ.copy()
+        env["FONTCONFIG_PATH"] = tmp_dir
+    else:
+        tmp_dir = None
+        env     = None
+
+    vf = f"ass={ass_esc}"
+
     cmd = [
-        "ffmpeg", "-y", "-i", frame_path,
-        "-vf", f"ass={ass_esc}",
-        "-q:v", "2", output_path
-    ]
-    r = subprocess.run(cmd, capture_output=True, text=True)
-
-    for p in [frame_path, ass_path]:
-        if os.path.exists(p): os.remove(p)
-
-    return r.returncode == 0
-
-
-def burn_subtitles(video_path: str, ass_path: str, output_path: str) -> bool:
-    """Вшивает ASS субтитры через FFmpeg."""
-    ass_escaped = ass_path.replace("\\", "/").replace(":", "\\:")
-    cmd = [
-        "ffmpeg", "-y", "-i", video_path,
-        "-vf", f"ass={ass_escaped}",
-        "-c:a", "copy",
-        "-c:v", "libx264", "-crf", "23", "-preset", "fast",
+        "ffmpeg", "-y",
+        "-f", "lavfi",
+        "-i", f"color=c=0x2D6A4F:size={width}x{height}:duration=1:rate=1",
+        "-vf", vf,
+        "-vframes", "1", "-q:v", "2",
         output_path
     ]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    if os.path.exists(ass_path):
+        os.remove(ass_path)
+    if tmp_dir and os.path.exists(tmp_dir):
+        import shutil as _shutil
+        _shutil.rmtree(tmp_dir, ignore_errors=True)
     if r.returncode != 0:
-        logger.error(f"FFmpeg ass: {r.stderr[-300:]}")
+        logger.error(f"render_preset_preview: {r.stderr[-300:]}")
         return False
     return True
 
-
-# ── Основной пайплайн ───────────────────────────────────────
-# Запоминаем путь к последнему обработанному видео для /previewframe
-_last_video_path: str = ""
-
-def get_last_video_path() -> str:
-    return _last_video_path
 
 def process_video(
     input_path: str,
@@ -408,19 +422,18 @@ def process_video(
     use_censor: bool = False,
     settings: dict = None
 ) -> tuple[bool, str]:
-    global _last_video_path
-
-    base             = os.path.splitext(input_path)[0]
-    audio_path       = base + "_audio.wav"
-    ass_path         = base + ".ass"
-    compressed_path  = base + "_compressed.mp4"
-    working_path     = input_path
+    """Полный пайплайн обработки видео."""
+    s               = settings or {}
+    base            = os.path.splitext(input_path)[0]
+    audio_path      = base + "_audio.wav"
+    ass_path        = base + ".ass"
+    compressed_path = base + "_compressed.mp4"
+    working_path    = input_path
 
     try:
         logger.info(f"Файл: {input_path}")
-        logger.info(f"Настройки: posX={settings.get('posX') if settings else 'default'} "
-                    f"posY={settings.get('posY') if settings else 'default'} "
-                    f"fontSize={settings.get('fontSize') if settings else 'default'}")
+        logger.info(f"Настройки: posX={s.get('posX')} posY={s.get('posY')} "
+                    f"fontSize={s.get('fontSize')} font={s.get('fontName')}")
 
         # 0. Сжимаем если > 20 МБ
         if os.path.getsize(input_path) > COMPRESS_THRESHOLD:
@@ -430,10 +443,7 @@ def process_video(
             else:
                 logger.warning("Сжатие не удалось")
 
-        # Запоминаем путь для /previewframe
-        _last_video_path = working_path
-
-        # 1. Размеры видео — нужны для точного \pos(x,y)
+        # 1. Размеры видео
         vid_w, vid_h = get_video_size(working_path)
         logger.info(f"Размер видео: {vid_w}x{vid_h}")
 
@@ -448,7 +458,7 @@ def process_video(
         if not words:
             return False, "Речь не обнаружена"
 
-        max_w    = int((settings or {}).get("maxWords", MAX_WORDS_PER_SUB))
+        max_w    = int(s.get("maxWords", MAX_WORDS_PER_SUB))
         segments = words_to_segments(words, max_words=max_w)
 
         if use_censor:
@@ -457,16 +467,19 @@ def process_video(
 
         logger.info(f"Субтитров: {len(segments)}")
 
-        # 4. Генерируем ASS с точными координатами
-        ass_content = segments_to_ass(segments, settings or {}, vid_w, vid_h)
+        # 4. Генерируем ASS
+        ass_content = build_ass(segments, s, vid_w, vid_h)
         with open(ass_path, "w", encoding="utf-8") as f:
             f.write(ass_content)
+        logger.info(f"ASS файл создан: {ass_path}")
 
         # 5. Вшиваем
         logger.info("3/3 Вшиваю субтитры...")
-        if not burn_subtitles(working_path, ass_path, output_path):
+        font_name = s.get("fontName", "Arial")
+        if not burn_subtitles(working_path, ass_path, output_path, font_name):
             return False, "Не удалось вшить субтитры"
 
+        logger.info("Готово!")
         return True, ""
 
     except Exception as e:

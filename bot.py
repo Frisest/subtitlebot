@@ -7,7 +7,7 @@ import urllib.request
 from aiohttp import web
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from processor import process_video, get_last_video_path, extract_frame, extract_frame_with_text
+from processor import process_video, render_preset_preview
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -217,10 +217,15 @@ async def settings_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not WEBAPP_URL:
         await update.message.reply_text("⚙️ WEBAPP_URL не задан в .env")
         return
-    # ReplyKeyboardMarkup — ТОЛЬКО этот тип позволяет sendData работать!
-    # InlineKeyboard и Menu Button sendData НЕ поддерживают
+
+    import urllib.parse
+    # Передаём текущие настройки в URL чтобы WebApp загрузил их
+    settings_json = json.dumps(s, ensure_ascii=False, separators=(',', ':'))
+    settings_encoded = urllib.parse.quote(settings_json)
+    webapp_url_with_settings = f"{WEBAPP_URL}?s={settings_encoded}"
+
     keyboard = ReplyKeyboardMarkup(
-        [[KeyboardButton("🎨 Настройки субтитров", web_app=WebAppInfo(url=WEBAPP_URL))]],
+        [[KeyboardButton("🎨 Настройки субтитров", web_app=WebAppInfo(url=webapp_url_with_settings))]],
         resize_keyboard=True,
         one_time_keyboard=True
     )
@@ -348,66 +353,28 @@ async def handle_font_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"Font upload error: {e}")
         await status.edit_text(f"❌ Ошибка: {e}")
 
-async def previewframe_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Отправляет кадр из последнего обработанного видео."""
-    uid       = update.message.from_user.id
-    last_path = get_last_video_path()
-    if not last_path or not os.path.exists(last_path):
-        await update.message.reply_text(
-            "❌ Нет обработанного видео. Сначала отправь видео боту, потом используй эту команду."
-        )
-        return
-
-    status = await update.message.reply_text("⏳ Извлекаю кадр...")
-    frame_path = os.path.join(OUTPUT_DIR, f"frame_{uid}.jpg")
-    try:
-        loop = asyncio.get_event_loop()
-        ok = await loop.run_in_executor(None, extract_frame, last_path, frame_path, 1.0)
-        if ok:
-            with open(frame_path, "rb") as f:
-                await update.message.reply_photo(
-                    photo=f,
-                    caption="📸 Кадр из последнего видео. Используй как фон в настройках субтитров."
-                )
-            await status.delete()
-        else:
-            await status.edit_text("❌ Не удалось извлечь кадр.")
-    except Exception as e:
-        await status.edit_text(f"❌ Ошибка: {e}")
-    finally:
-        if os.path.exists(frame_path):
-            os.remove(frame_path)
-
-
 async def savepreset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Рендерит превью субтитров на кадре из последнего видео и отправляет с командой /applysettings."""
-    uid       = update.message.from_user.id
-    settings  = get_settings(uid)
-    last_path = get_last_video_path()
+    """Рендерит превью субтитров на зелёном фоне и присылает с командой /applysettings."""
+    uid      = update.message.from_user.id
+    settings = get_settings(uid)
+    vid_w    = int(settings.get("vidW", 1080))
+    vid_h    = int(settings.get("vidH", 1920))
 
-    if not last_path or not os.path.exists(last_path):
-        await update.message.reply_text(
-            "❌ Нет обработанного видео. Сначала отправь видео боту."
-        )
-        return
-
-    status = await update.message.reply_text("⏳ Создаю превью пресета...")
+    status   = await update.message.reply_text("⏳ Создаю превью пресета...")
     out_path = os.path.join(OUTPUT_DIR, f"preset_{uid}.jpg")
     try:
-        loop  = asyncio.get_event_loop()
-        ok    = await loop.run_in_executor(
-            None, extract_frame_with_text,
-            last_path, out_path, "Сохранён Пресет субтитров", settings
+        loop = asyncio.get_event_loop()
+        ok   = await loop.run_in_executor(
+            None, render_preset_preview,
+            out_path, "Пример субтитра", settings, vid_w, vid_h
         )
         if ok:
-            import json as _json
-            cmd_text = "/applysettings " + _json.dumps(settings, ensure_ascii=False)
+            cmd_text = "/applysettings " + json.dumps(settings, ensure_ascii=False)
             with open(out_path, "rb") as f:
                 await update.message.reply_photo(
                     photo=f,
-                    caption="✅ Пресет субтитров сохранён!\nСкопируй команду ниже чтобы применить эти настройки:"
+                    caption="✅ Пресет сохранён! Скопируй команду ниже чтобы применить:"
                 )
-            # Отдельным сообщением команду — легче скопировать
             await update.message.reply_text(
                 f"`{cmd_text}`",
                 parse_mode="Markdown"
@@ -421,6 +388,7 @@ async def savepreset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         if os.path.exists(out_path):
             os.remove(out_path)
+
 
 
 async def cens_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -518,7 +486,6 @@ def main():
     app.add_handler(CommandHandler("load",          load_font_cmd))
     app.add_handler(CommandHandler("list",          list_fonts_cmd))
     app.add_handler(CommandHandler("cens",          cens_cmd))
-    app.add_handler(CommandHandler("previewframe",  previewframe_cmd))
     app.add_handler(CommandHandler("savepreset",    savepreset_cmd))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data))
     app.add_handler(MessageHandler(
