@@ -196,25 +196,6 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
 var tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
-// Показываем как открыт WebApp — для диагностики
-window.addEventListener('DOMContentLoaded', function() {
-  var info = document.createElement('div');
-  info.style.cssText = 'border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;';
-  if (!tg) {
-    info.style.cssText += 'background:#2a1a1a;border:1px solid #4a2a2a;color:#ff6b6b;';
-    info.textContent = 'Открыто в браузере — откройте через Telegram';
-  } else if (tg.initData && tg.initData !== '') {
-    // initData есть — открыто через Menu Button или inline (sendData НЕ работает)
-    info.style.cssText += 'background:#2a2a1a;border:1px solid #4a3a1a;color:#ffb347;';
-    info.innerHTML = '⚠️ Открыто через Menu Button — sendData не работает.<br>Напиши боту <b>/settings</b> и нажми кнопку которая появится снизу.';
-  } else {
-    // initData пуст — открыто через KeyboardButton (sendData РАБОТАЕТ)
-    info.style.cssText += 'background:#1a2a1a;border:1px solid #2a4a2a;color:#34c76f;';
-    info.innerHTML = '✅ Открыто через кнопку /settings — кнопка "Сохранить" работает!';
-  }
-  document.body.insertBefore(info, document.body.firstChild);
-});
-
 // ── Состояние ──────────────────────────────────────────────
 var S = {
   vidW:1080, vidH:1920,
@@ -223,9 +204,7 @@ var S = {
   color:'#ffffff', maxWords:5,
   zone:{ left:5, right:5, top:5, bottom:5 },
   fontName:'Arial',
-  shadowStrength: 3,
-  bgOpacity: 65,
-  outlineWidth: 2
+  shadowStrength:3, bgOpacity:65, outlineWidth:2
 };
 
 var PRESETS = {
@@ -237,8 +216,68 @@ var PIDS   = ['tl','tc','tr','ml','mc','mr','bl','bc','br'];
 var COLORS = ['#ffffff','#ffff00','#00ff88','#ff6b6b','#4f9eff','#ffb347','#e879f9','#000000'];
 var BUILTIN_FONTS = ['Arial','Impact','Times New Roman','Courier New','Verdana','Georgia'];
 var customFonts   = [];
+var LS_KEY        = 'subtitle_settings_v3';
 
-// ── Загрузка шрифтов с GitHub ───────────────────────────────
+// ── Сохранение в localStorage ──────────────────────────────
+function saveToStorage() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch(e) {}
+}
+
+function loadFromStorage() {
+  var loaded = null;
+  // 1. Пробуем URL параметр (бот передаёт актуальные настройки)
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var raw = params.get('s');
+    if (raw) loaded = JSON.parse(decodeURIComponent(raw));
+  } catch(e) {}
+  // 2. Иначе localStorage
+  if (!loaded) {
+    try {
+      var ls = localStorage.getItem(LS_KEY);
+      if (ls) loaded = JSON.parse(ls);
+    } catch(e) {}
+  }
+  if (!loaded) return;
+
+  var fields = ['posX','posY','fontSize','fontWeight','bgStyle','color',
+                'maxWords','fontName','shadowStrength','bgOpacity','outlineWidth','vidW','vidH'];
+  fields.forEach(function(k) { if (loaded[k] !== undefined) S[k] = loaded[k]; });
+  if (loaded.zone) S.zone = loaded.zone;
+}
+
+function syncUI() {
+  document.getElementById('vidW').value = S.vidW;
+  document.getElementById('vidH').value = S.vidH;
+  document.getElementById('fontSize').value = S.fontSize;
+  document.getElementById('fontSizeV').textContent = S.fontSize + 'px';
+  document.getElementById('maxWords').value = S.maxWords;
+  document.getElementById('maxWordsV').textContent = S.maxWords;
+  document.getElementById('posX').value = S.posX;
+  document.getElementById('posXv').textContent = S.posX + '%';
+  document.getElementById('posY').value = S.posY;
+  document.getElementById('posYv').textContent = S.posY + '%';
+  document.getElementById('shadowStrength').value = S.shadowStrength;
+  document.getElementById('shadowStrengthV').textContent = S.shadowStrength;
+  document.getElementById('bgOpacity').value = S.bgOpacity;
+  document.getElementById('bgOpacityV').textContent = S.bgOpacity + '%';
+  document.getElementById('outlineWidth').value = S.outlineWidth;
+  document.getElementById('outlineWidthV').textContent = S.outlineWidth;
+  setFW(S.fontWeight);
+  setBG(S.bgStyle);
+  syncZone();
+  // Активируем пресет если совпадает
+  var found = false;
+  Object.keys(PRESETS).forEach(function(id) {
+    if (PRESETS[id].x === S.posX && PRESETS[id].y === S.posY) {
+      clearP();
+      document.getElementById('pb-'+id).className = 'pb on';
+      found = true;
+    }
+  });
+}
+
+// ── Шрифты ─────────────────────────────────────────────────
 function loadFontsFromGithub() {
   var base = window.location.href.replace(/\/[^\/]*(\?.*)?$/, '');
   var url  = base + '/fonts.json?v=' + Date.now();
@@ -294,15 +333,15 @@ function setSize(w, h) {
   document.getElementById('vidW').value = w;
   document.getElementById('vidH').value = h;
   updatePreviewSize();
+  saveToStorage();
 }
 
-document.getElementById('vidW').addEventListener('input', updatePreviewSize);
-document.getElementById('vidH').addEventListener('input', updatePreviewSize);
+document.getElementById('vidW').addEventListener('input', function() { updatePreviewSize(); saveToStorage(); });
+document.getElementById('vidH').addEventListener('input', function() { updatePreviewSize(); saveToStorage(); });
 
 function buildOutlineShadow(r) {
-  // Имитируем обводку через много теней вокруг текста
   var parts = [];
-  var steps = Math.max(6, Math.round(r * 4));
+  var steps = Math.max(8, Math.round(r * 6));
   for (var i = 0; i < steps; i++) {
     var angle = (i / steps) * Math.PI * 2;
     var x = Math.round(Math.cos(angle) * r * 10) / 10;
@@ -325,38 +364,40 @@ function render() {
   var sz = document.getElementById('safeZone');
   sz.style.left=zl+'px'; sz.style.top=zt+'px';
   sz.style.width=zw+'px'; sz.style.height=zh+'px';
-
   setHdl('hTL',zl,zt); setHdl('hTR',zl+zw,zt);
   setHdl('hBL',zl,zt+zh); setHdl('hBR',zl+zw,zt+zh);
 
-  var el = document.getElementById('subText');
-  var fs = Math.max(8, Math.round(S.fontSize * scale));
-  el.style.fontSize    = fs + 'px';
-  el.style.fontWeight  = S.fontWeight === 'bold' ? '700' : '400';
-  el.style.color       = S.color;
-  el.style.fontFamily  = '"' + S.fontName + '", Arial, sans-serif';
-  el.style.width       = zw + 'px';
-  el.style.left        = zl + 'px';
+  var el  = document.getElementById('subText');
+  var fs  = Math.max(8, Math.round(S.fontSize * scale));
+  var ow  = (S.outlineWidth || 0) * scale * 0.6;
+  var ss  = S.shadowStrength || 3;
+  var op  = (S.bgOpacity || 65) / 100;
 
-  var ss = S.shadowStrength || 3;
-  var op = (S.bgOpacity || 65) / 100;
-  var ow = (S.outlineWidth || 0) * scale;
+  el.style.fontSize   = fs + 'px';
+  el.style.fontWeight = S.fontWeight === 'bold' ? '700' : '400';
+  el.style.color      = S.color;
+  el.style.fontFamily = '"' + S.fontName + '", Arial, sans-serif';
+  el.style.width      = zw + 'px';
+  el.style.left       = zl + 'px';
+
+  var outlineShadow = ow > 0.5 ? buildOutlineShadow(ow) : '';
 
   if (S.bgStyle === 'box') {
     el.style.background   = 'rgba(0,0,0,' + op + ')';
     el.style.padding      = Math.round(4*scale) + 'px ' + Math.round(10*scale) + 'px';
     el.style.borderRadius = Math.round(4*scale) + 'px';
-    el.style.textShadow   = ow > 0 ? buildOutlineShadow(ow) : 'none';
+    el.style.textShadow   = outlineShadow || 'none';
   } else if (S.bgStyle === 'shadow') {
     el.style.background = 'none'; el.style.padding = '0'; el.style.borderRadius = '0';
-    var spread = Math.round(ss * 3 * scale);
-    var shadowPart = '0 ' + Math.round(ss*scale) + 'px ' + spread + 'px rgba(0,0,0,0.95),' +
-                     '0 0 ' + spread + 'px rgba(0,0,0,0.8)';
-    el.style.textShadow = ow > 0 ? (buildOutlineShadow(ow) + ',' + shadowPart) : shadowPart;
+    var spread = Math.round(ss * 4 * scale);
+    var dropShadow = '0 ' + Math.round(ss*scale*0.5) + 'px ' + spread + 'px rgba(0,0,0,0.9),' +
+                     '0 0 ' + spread + 'px rgba(0,0,0,0.7)';
+    el.style.textShadow = outlineShadow ? (outlineShadow + ',' + dropShadow) : dropShadow;
   } else {
     el.style.background = 'none'; el.style.padding = '0'; el.style.borderRadius = '0';
-    el.style.textShadow = ow > 0 ? buildOutlineShadow(ow) :
-      (Math.round(scale)+'px '+Math.round(scale)+'px 0 #000,-'+Math.round(scale)+'px '+Math.round(scale)+'px 0 #000,'+Math.round(scale)+'px -'+Math.round(scale)+'px 0 #000,-'+Math.round(scale)+'px -'+Math.round(scale)+'px 0 #000');
+    var def = Math.max(0.8, scale * 1.5);
+    el.style.textShadow = outlineShadow ||
+      (def+'px '+def+'px 0 #000,-'+def+'px '+def+'px 0 #000,'+def+'px -'+def+'px 0 #000,-'+def+'px -'+def+'px 0 #000');
   }
 
   el.style.top = '0px';
@@ -368,7 +409,7 @@ function render() {
 
 function setHdl(id, x, y) {
   var el = document.getElementById(id);
-  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.style.left = x+'px'; el.style.top = y+'px';
 }
 
 // ── Drag ────────────────────────────────────────────────────
@@ -387,13 +428,13 @@ function setupDrag() {
       if (!drag) return;
       var box = document.getElementById('previewBox');
       c.fn((cx-sx)/box.offsetWidth*100, (cy-sy)/box.offsetHeight*100, z0);
-      syncZone(); render();
+      syncZone(); render(); saveToStorage();
     }
-    function end() { drag = false; }
+    function end() { drag=false; }
     el.addEventListener('mousedown',  function(e){ e.preventDefault(); start(e.clientX,e.clientY); });
-    el.addEventListener('touchstart', function(e){ e.preventDefault(); start(e.touches[0].clientX,e.touches[0].clientY); }, {passive:false});
+    el.addEventListener('touchstart', function(e){ e.preventDefault(); start(e.touches[0].clientX,e.touches[0].clientY); },{passive:false});
     window.addEventListener('mousemove',  function(e){ move(e.clientX,e.clientY); });
-    window.addEventListener('touchmove',  function(e){ if(drag){ e.preventDefault(); move(e.touches[0].clientX,e.touches[0].clientY); } }, {passive:false});
+    window.addEventListener('touchmove',  function(e){ if(drag){ e.preventDefault(); move(e.touches[0].clientX,e.touches[0].clientY); } },{passive:false});
     window.addEventListener('mouseup',  end);
     window.addEventListener('touchend', end);
   });
@@ -419,30 +460,24 @@ function onZone()      {
   S.zone.top=parseInt(document.getElementById('zT').value);  S.zone.bottom=parseInt(document.getElementById('zB').value);
   document.getElementById('zLv').textContent=S.zone.left+'%'; document.getElementById('zRv').textContent=S.zone.right+'%';
   document.getElementById('zTv').textContent=S.zone.top+'%';  document.getElementById('zBv').textContent=S.zone.bottom+'%';
-  render();
+  render(); saveToStorage();
 }
-function onOutline() {
-  S.outlineWidth = parseInt(document.getElementById('outlineWidth').value);
-  document.getElementById('outlineWidthV').textContent = S.outlineWidth;
-  render();
+function onShadow()    { S.shadowStrength=parseInt(document.getElementById('shadowStrength').value); document.getElementById('shadowStrengthV').textContent=S.shadowStrength; render(); saveToStorage(); }
+function onBgOpacity() { S.bgOpacity=parseInt(document.getElementById('bgOpacity').value); document.getElementById('bgOpacityV').textContent=S.bgOpacity+'%'; render(); saveToStorage(); }
+function onOutline()   { S.outlineWidth=parseInt(document.getElementById('outlineWidth').value); document.getElementById('outlineWidthV').textContent=S.outlineWidth; render(); saveToStorage(); }
+
+function setFW(w) {
+  S.fontWeight=w;
+  document.getElementById('fw0').className = w==='normal'?'on':'';
+  document.getElementById('fw1').className = w==='bold'?'on':'';
+  render(); saveToStorage();
 }
-function onShadow() {
-  S.shadowStrength = parseInt(document.getElementById('shadowStrength').value);
-  document.getElementById('shadowStrengthV').textContent = S.shadowStrength;
-  render();
-}
-function onBgOpacity() {
-  S.bgOpacity = parseInt(document.getElementById('bgOpacity').value);
-  document.getElementById('bgOpacityV').textContent = S.bgOpacity + '%';
-  render();
-}
-function setFW(w) { S.fontWeight=w; document.getElementById('fw0').className=w==='normal'?'on':''; document.getElementById('fw1').className=w==='bold'?'on':''; render(); saveToStorage(); }
 function setBG(v) {
-  S.bgStyle = v;
-  ['none','shadow','box'].forEach(function(x,i){ document.getElementById('bg'+i).className = x===v ? 'on' : ''; });
-  document.getElementById('rowShadow').style.display   = v==='shadow' ? 'flex' : 'none';
+  S.bgStyle=v;
+  ['none','shadow','box'].forEach(function(x,i){ document.getElementById('bg'+i).className=x===v?'on':''; });
+  document.getElementById('rowShadow').style.display    = v==='shadow' ? 'flex' : 'none';
   document.getElementById('rowBgOpacity').style.display = v==='box'    ? 'flex' : 'none';
-  render();
+  render(); saveToStorage();
 }
 function clearP()  { PIDS.forEach(function(id){ document.getElementById('pb-'+id).className='pb'; }); }
 function setPreset(id) {
@@ -450,9 +485,8 @@ function setPreset(id) {
   S.posX=p.x; S.posY=p.y;
   document.getElementById('posX').value=S.posX; document.getElementById('posY').value=S.posY;
   document.getElementById('posXv').textContent=S.posX+'%'; document.getElementById('posYv').textContent=S.posY+'%';
-  clearP(); document.getElementById('pb-'+id).className='pb on'; render();
+  clearP(); document.getElementById('pb-'+id).className='pb on'; render(); saveToStorage();
 }
-
 function buildColors() {
   var row = document.getElementById('colorRow'); row.innerHTML = '';
   COLORS.forEach(function(c) {
@@ -471,29 +505,36 @@ function resetAll() {
        bgStyle:'none',color:'#ffffff',maxWords:5,
        zone:{left:5,right:5,top:5,bottom:5},fontName:'Arial',
        shadowStrength:3,bgOpacity:65,outlineWidth:2};
-  document.getElementById('vidW').value=1080; document.getElementById('vidH').value=1920;
-  document.getElementById('fontSize').value=22; document.getElementById('fontSizeV').textContent='22px';
-  document.getElementById('maxWords').value=5; document.getElementById('maxWordsV').textContent='5';
-  document.getElementById('posX').value=50; document.getElementById('posY').value=88;
-  document.getElementById('posXv').textContent='50%'; document.getElementById('posYv').textContent='88%';
-  document.getElementById('outlineWidth').value=2; document.getElementById('outlineWidthV').textContent='2';
-  setFW('normal'); setBG('none'); syncZone(); buildColors(); buildFontList(); setPreset('bc');
+  syncUI();
+  buildColors(); buildFontList();
   updatePreviewSize();
-  var btn = document.getElementById('btnSave');
-  btn.className='btn-sav'; btn.textContent='✓ Сохранить';
+  saveToStorage();
+  var btn=document.getElementById('btnSave');
+  btn.className='btn-sav'; btn.textContent='📋 Скопировать команду';
 }
 
 // ── Сохранение ──────────────────────────────────────────────
-function saveSettings() {
-  // HTML кнопка — только копирует команду в буфер
-  // Основное сохранение идёт через синюю кнопку MainButton внизу экрана
-  var data = {
-    posX:S.posX, posY:S.posY, fontSize:S.fontSize, fontWeight:S.fontWeight,
+function getSettingsData() {
+  return {
+    posX:S.posX, posY:S.posY,
+    fontSize:S.fontSize, fontWeight:S.fontWeight,
     bgStyle:S.bgStyle, color:S.color, maxWords:S.maxWords,
     zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName,
-    /* handled by getSettingsData() */
+    shadowStrength:S.shadowStrength, bgOpacity:S.bgOpacity, outlineWidth:S.outlineWidth
   };
-  fallbackCopy(JSON.stringify(data), document.getElementById('btnSave'));
+}
+
+function saveSettings() {
+  var data = getSettingsData();
+  var json = JSON.stringify(data);
+  saveToStorage();
+
+  // Если открыто через KeyboardButton (initData пуст) — sendData работает
+  if (tg && (!tg.initData || tg.initData === '')) {
+    try { tg.sendData(json); return; } catch(e) {}
+  }
+  // Иначе — копируем в буфер
+  fallbackCopy(json, document.getElementById('btnSave'));
 }
 
 function fallbackCopy(json, btn) {
@@ -504,17 +545,14 @@ function fallbackCopy(json, btn) {
     btn.textContent = '✓ Скопировано!';
     tip.style.display = 'block';
     setTimeout(function() {
-      btn.className = 'btn-sav'; btn.textContent = '✓ Сохранить';
+      btn.className = 'btn-sav'; btn.textContent = '📋 Скопировать команду';
       tip.style.display = 'none';
     }, 5000);
   }
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(onCopied).catch(function() { execCopy(text); onCopied(); });
-  } else {
-    execCopy(text); onCopied();
-  }
+  } else { execCopy(text); onCopied(); }
 }
-
 
 function execCopy(text) {
   var ta = document.createElement('textarea');
@@ -524,78 +562,15 @@ function execCopy(text) {
   document.body.removeChild(ta);
 }
 
-// ── Сохранение/загрузка настроек через localStorage ─────────
-var LS_KEY = 'subtitle_settings_v2';
-
-function saveToStorage() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch(e) {}
-}
-
-function loadFromStorage() {
-  // Сначала пробуем URL параметр (бот передаёт актуальные настройки)
-  var loaded = null;
-  try {
-    var params = new URLSearchParams(window.location.search);
-    var raw = params.get('s');
-    if (raw) loaded = JSON.parse(decodeURIComponent(raw));
-  } catch(e) {}
-
-  // Если нет в URL — берём из localStorage
-  if (!loaded) {
-    try {
-      var ls = localStorage.getItem(LS_KEY);
-      if (ls) loaded = JSON.parse(ls);
-    } catch(e) {}
-  }
-
-  if (!loaded) return;
-
-  // Применяем настройки к S
-  var fields = ['posX','posY','fontSize','fontWeight','bgStyle','color',
-                'maxWords','fontName','shadowStrength','bgOpacity','outlineWidth',
-                'vidW','vidH'];
-  fields.forEach(function(k) {
-    if (loaded[k] !== undefined) S[k] = loaded[k];
-  });
-  if (loaded.zone) S.zone = loaded.zone;
-
-  // Синхронизируем все контролы
-  function setEl(id, val) {
-    var el = document.getElementById(id);
-    if (el) el.value = val;
-  }
-  function setTxt(id, val) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = val;
-  }
-
-  setEl('vidW', S.vidW); setEl('vidH', S.vidH);
-  setEl('fontSize', S.fontSize); setTxt('fontSizeV', S.fontSize + 'px');
-  setEl('maxWords', S.maxWords); setTxt('maxWordsV', S.maxWords);
-  setEl('posX', S.posX); setTxt('posXv', S.posX + '%');
-  setEl('posY', S.posY); setTxt('posYv', S.posY + '%');
-  setEl('shadowStrength', S.shadowStrength);
-  setTxt('shadowStrengthV', S.shadowStrength);
-  setEl('bgOpacity', S.bgOpacity);
-  setTxt('bgOpacityV', S.bgOpacity + '%');
-  setEl('outlineWidth', S.outlineWidth);
-  setTxt('outlineWidthV', S.outlineWidth);
-
-  setFW(S.fontWeight);
-  setBG(S.bgStyle);
-  syncZone();
-}
-
 // ── Инициализация ───────────────────────────────────────────
 loadFromStorage();
 buildColors();
 loadFontsFromGithub();
 setupDrag();
-requestAnimationFrame(function() { updatePreviewSize(); });
+requestAnimationFrame(function() { updatePreviewSize(); syncUI(); });
 window.addEventListener('resize', updatePreviewSize);
 
-// Настраиваем MainButton Telegram (нативная кнопка внизу WebApp)
-// Это единственный надёжный способ sendData
+// MainButton — нативная кнопка Telegram (работает через KeyboardButton)
 if (tg && tg.MainButton) {
   tg.MainButton.setText('✓ Сохранить настройки');
   tg.MainButton.show();
