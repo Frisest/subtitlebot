@@ -148,6 +148,11 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; h
     <span class="rl">Фон текста</span>
     <div class="tog"><button id="bg0" class="on" onclick="setBG('none')">Нет</button><button id="bg1" onclick="setBG('shadow')">Тень</button><button id="bg2" onclick="setBG('box')">Плашка</button></div>
   </div>
+  <div class="row">
+    <span class="rl">Обводка</span>
+    <input type="range" id="outlineWidth" min="0" max="10" value="2" oninput="onOutline()">
+    <span class="rv" id="outlineWidthV">2</span>
+  </div>
   <div class="row" id="rowShadow" style="display:none">
     <span class="rl">Сила тени</span>
     <input type="range" id="shadowStrength" min="1" max="10" value="3" oninput="onShadow()">
@@ -219,7 +224,8 @@ var S = {
   zone:{ left:5, right:5, top:5, bottom:5 },
   fontName:'Arial',
   shadowStrength: 3,
-  bgOpacity: 65
+  bgOpacity: 65,
+  outlineWidth: 2
 };
 
 var PRESETS = {
@@ -293,6 +299,19 @@ function setSize(w, h) {
 document.getElementById('vidW').addEventListener('input', updatePreviewSize);
 document.getElementById('vidH').addEventListener('input', updatePreviewSize);
 
+function buildOutlineShadow(r) {
+  // Имитируем обводку через много теней вокруг текста
+  var parts = [];
+  var steps = Math.max(6, Math.round(r * 4));
+  for (var i = 0; i < steps; i++) {
+    var angle = (i / steps) * Math.PI * 2;
+    var x = Math.round(Math.cos(angle) * r * 10) / 10;
+    var y = Math.round(Math.sin(angle) * r * 10) / 10;
+    parts.push(x + 'px ' + y + 'px 0 #000');
+  }
+  return parts.join(',');
+}
+
 function render() {
   var box = document.getElementById('previewBox');
   var pw = box.offsetWidth, ph = box.offsetHeight;
@@ -321,22 +340,23 @@ function render() {
 
   var ss = S.shadowStrength || 3;
   var op = (S.bgOpacity || 65) / 100;
+  var ow = (S.outlineWidth || 0) * scale;
+
   if (S.bgStyle === 'box') {
     el.style.background   = 'rgba(0,0,0,' + op + ')';
     el.style.padding      = Math.round(4*scale) + 'px ' + Math.round(10*scale) + 'px';
     el.style.borderRadius = Math.round(4*scale) + 'px';
-    el.style.textShadow   = 'none';
+    el.style.textShadow   = ow > 0 ? buildOutlineShadow(ow) : 'none';
   } else if (S.bgStyle === 'shadow') {
     el.style.background = 'none'; el.style.padding = '0'; el.style.borderRadius = '0';
     var spread = Math.round(ss * 3 * scale);
-    el.style.textShadow =
-      '0 0 ' + spread + 'px #000,' +
-      '0 0 ' + Math.round(spread*1.5) + 'px #000,' +
-      '0 ' + Math.round(scale) + 'px ' + Math.round(spread*0.5) + 'px #000';
+    var shadowPart = '0 ' + Math.round(ss*scale) + 'px ' + spread + 'px rgba(0,0,0,0.95),' +
+                     '0 0 ' + spread + 'px rgba(0,0,0,0.8)';
+    el.style.textShadow = ow > 0 ? (buildOutlineShadow(ow) + ',' + shadowPart) : shadowPart;
   } else {
     el.style.background = 'none'; el.style.padding = '0'; el.style.borderRadius = '0';
-    var o = Math.max(1, Math.round(scale));
-    el.style.textShadow = o+'px '+o+'px 0 #000,-'+o+'px '+o+'px 0 #000,'+o+'px -'+o+'px 0 #000,-'+o+'px -'+o+'px 0 #000';
+    el.style.textShadow = ow > 0 ? buildOutlineShadow(ow) :
+      (Math.round(scale)+'px '+Math.round(scale)+'px 0 #000,-'+Math.round(scale)+'px '+Math.round(scale)+'px 0 #000,'+Math.round(scale)+'px -'+Math.round(scale)+'px 0 #000,-'+Math.round(scale)+'px -'+Math.round(scale)+'px 0 #000');
   }
 
   el.style.top = '0px';
@@ -401,6 +421,11 @@ function onZone()      {
   document.getElementById('zTv').textContent=S.zone.top+'%';  document.getElementById('zBv').textContent=S.zone.bottom+'%';
   render();
 }
+function onOutline() {
+  S.outlineWidth = parseInt(document.getElementById('outlineWidth').value);
+  document.getElementById('outlineWidthV').textContent = S.outlineWidth;
+  render();
+}
 function onShadow() {
   S.shadowStrength = parseInt(document.getElementById('shadowStrength').value);
   document.getElementById('shadowStrengthV').textContent = S.shadowStrength;
@@ -445,12 +470,13 @@ function resetAll() {
   S = {vidW:1080,vidH:1920,posX:50,posY:88,fontSize:22,fontWeight:'normal',
        bgStyle:'none',color:'#ffffff',maxWords:5,
        zone:{left:5,right:5,top:5,bottom:5},fontName:'Arial',
-       shadowStrength:3,bgOpacity:65};
+       shadowStrength:3,bgOpacity:65,outlineWidth:2};
   document.getElementById('vidW').value=1080; document.getElementById('vidH').value=1920;
   document.getElementById('fontSize').value=22; document.getElementById('fontSizeV').textContent='22px';
   document.getElementById('maxWords').value=5; document.getElementById('maxWordsV').textContent='5';
   document.getElementById('posX').value=50; document.getElementById('posY').value=88;
   document.getElementById('posXv').textContent='50%'; document.getElementById('posYv').textContent='88%';
+  document.getElementById('outlineWidth').value=2; document.getElementById('outlineWidthV').textContent='2';
   setFW('normal'); setBG('none'); syncZone(); buildColors(); buildFontList(); setPreset('bc');
   updatePreviewSize();
   var btn = document.getElementById('btnSave');
@@ -465,7 +491,7 @@ function saveSettings() {
     posX:S.posX, posY:S.posY, fontSize:S.fontSize, fontWeight:S.fontWeight,
     bgStyle:S.bgStyle, color:S.color, maxWords:S.maxWords,
     zone:S.zone, vidW:S.vidW, vidH:S.vidH, fontName:S.fontName,
-    shadowStrength:S.shadowStrength, bgOpacity:S.bgOpacity
+    shadowStrength:S.shadowStrength, bgOpacity:S.bgOpacity, outlineWidth:S.outlineWidth
   };
   fallbackCopy(JSON.stringify(data), document.getElementById('btnSave'));
 }
