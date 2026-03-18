@@ -7,7 +7,7 @@ import urllib.request
 from aiohttp import web
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from processor import process_video, render_preset_preview
+from processor import process_video, render_preset_preview, rebuild_with_custom_text, get_session, save_session
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ API_PORT   = int(os.getenv("API_PORT", "8765"))
 
 DOWNLOAD_DIR  = "downloads"
 OUTPUT_DIR    = "outputs"
+SESSIONS_DIR  = "sessions"   # видео для /changeword хранятся здесь
 SETTINGS_FILE = "user_settings.json"
 FONTS_DIR     = "fonts"
 # fonts.json генерируется ботом и должен лежать рядом с webapp.html
@@ -43,7 +44,7 @@ ADMIN_USERS: set[int] = {
     int(x) for x in os.getenv("ADMIN_USERS", "777325110").split(",") if x.strip()
 }
 
-for d in [DOWNLOAD_DIR, OUTPUT_DIR, FONTS_DIR]:
+for d in [DOWNLOAD_DIR, OUTPUT_DIR, FONTS_DIR, SESSIONS_DIR]:
     os.makedirs(d, exist_ok=True)
 
 DEFAULT_SETTINGS = {
@@ -391,6 +392,75 @@ async def savepreset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+def format_changeword(segments: list) -> str:
+    """Форматирует сегменты в команду /changeword с таймингами."""
+    parts = []
+    for i, seg in enumerate(segments):
+        duration = round(seg['end'] - seg['start'], 1)
+        parts.append(seg['text'])
+        if i < len(segments) - 1:
+            # Добавляем длительность между сегментами
+            secs = int(duration) if duration == int(duration) else duration
+            parts.append(f"{secs}сек")
+    joined = ' '.join(parts)
+    return "✏️ Текст субтитров (исправь слова и тайминги):\n\n`/changeword " + joined + "`"
+
+
+async def changeword_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Перегенерирует последнее видео с исправленным текстом субтитров.
+    Использование: /changeword новый текст субтитров
+    """
+    uid = update.message.from_user.id
+    if not context.args:
+        session = get_session(uid)
+        if session and session.get('segments'):
+            cw_text = format_changeword(session['segments'])
+            await update.message.reply_text(cw_text, parse_mode="Markdown")
+        else:
+            await update.message.reply_text(
+                "❌ Нет сохранённого видео. Сначала отправь видео боту."
+            )
+        return
+
+    custom_text = ' '.join(context.args)
+    status_msg  = await update.message.reply_text("⏳ Перегенерирую субтитры...")
+
+    output_path = os.path.join(OUTPUT_DIR, f"changed_{uid}.mp4")
+    try:
+        loop = asyncio.get_event_loop()
+        ok, err, new_segs = await loop.run_in_executor(
+            None, rebuild_with_custom_text, uid, custom_text, output_path
+        )
+        if ok:
+            await status_msg.edit_text("📤 Отправляю...")
+            with open(output_path, "rb") as vf:
+                await update.message.reply_video(
+                    video=vf,
+                    caption="✅ Видео с исправленными субтитрами!",
+                    supports_streaming=True,
+                    read_timeout=120,
+                    write_timeout=120,
+                )
+            await status_msg.delete()
+            # Обновляем сессию с новыми сегментами
+            if new_segs:
+                from processor import save_session, get_session
+                sess = get_session(uid)
+                if sess:
+                    save_session(uid, new_segs, sess['video_path'], sess['settings'])
+                full_text = format_changeword(new_segs)
+                await update.message.reply_text(full_text, parse_mode="Markdown")
+        else:
+            await status_msg.edit_text(f"❌ {err}")
+    except Exception as e:
+        logger.error(f"changeword error: {e}")
+        await status_msg.edit_text("❌ Что-то пошло не так.")
+    finally:
+        if os.path.exists(output_path):
+            os.remove(output_path)
+
+
 async def cens_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid  = update.message.from_user.id
     args = context.args
@@ -447,23 +517,58 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.edit_text("🎙️ Транскрибирую... (1–5 мин)")
 
         loop = asyncio.get_event_loop()
-        success, result = await loop.run_in_executor(
+        success, result, segments = await loop.run_in_executor(
             None, process_video, input_path, output_path, use_censor, settings
         )
 
         if success:
+            # Копируем видео в sessions/ чтобы не потерять после удаления input
+            import shutil
+            session_video = os.path.join(SESSIONS_DIR, f"{uid}_session.mp4")
+            shutil.copy2(input_path, session_video)
+            save_session(uid, segments, session_video, settings)
+            logger.info(f"Сессия сохранена uid={uid} сегментов={len(segments)} видео={session_video}")
+
             await status_msg.edit_text("📤 Отправляю...")
             caption = "✅ Субтитры добавлены."
             if use_censor:
                 caption += " (маты зацензурены 🔞)"
             with open(output_path, "rb") as vf:
-                await message.reply_video(video=vf, caption=caption, supports_streaming=True)
+                await message.reply_video(
+                    video=vf,
+                    caption=caption,
+                    supports_streaming=True,
+                    read_timeout=120,
+                    write_timeout=120,
+                    connect_timeout=30,
+                )
             await status_msg.delete()
+
+            # Отправляем текст субтитров с таймингами
+            if segments:
+                cw_text = format_changeword(segments)
+                await message.reply_text(cw_text, parse_mode="Markdown")
         else:
             await status_msg.edit_text(f"❌ Ошибка: {result}")
     except Exception as e:
         logger.error(f"Error for {uid}: {e}")
-        await status_msg.edit_text("❌ Что-то пошло не так. Попробуй ещё раз.")
+        # Если видео уже создано — попробуем отправить несмотря на ошибку
+        if os.path.exists(output_path):
+            try:
+                with open(output_path, "rb") as vf:
+                    await message.reply_video(
+                        video=vf,
+                        caption="✅ Субтитры добавлены.",
+                        supports_streaming=True,
+                        read_timeout=120,
+                        write_timeout=120,
+                    )
+                await status_msg.delete()
+            except Exception as e2:
+                logger.error(f"Retry send failed: {e2}")
+                await status_msg.edit_text("❌ Не удалось отправить видео. Попробуй ещё раз.")
+        else:
+            await status_msg.edit_text("❌ Что-то пошло не так. Попробуй ещё раз.")
     finally:
         for p in [input_path, output_path]:
             if os.path.exists(p):
@@ -478,7 +583,8 @@ def main():
         print("[ERROR] BOT_TOKEN not set in .env!")
         return
 
-    app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
+    app = Application.builder().token(BOT_TOKEN).post_init(post_init)\
+        .read_timeout(120).write_timeout(120).connect_timeout(30).build()
     app.add_handler(CommandHandler("start",         start_cmd))
     app.add_handler(CommandHandler("help",          help_cmd))
     app.add_handler(CommandHandler("settings",      settings_cmd))
@@ -486,6 +592,7 @@ def main():
     app.add_handler(CommandHandler("load",          load_font_cmd))
     app.add_handler(CommandHandler("list",          list_fonts_cmd))
     app.add_handler(CommandHandler("cens",          cens_cmd))
+    app.add_handler(CommandHandler("changeword",    changeword_cmd))
     app.add_handler(CommandHandler("savepreset",    savepreset_cmd))
     app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data))
     app.add_handler(MessageHandler(

@@ -11,6 +11,21 @@ MAX_WORDS_PER_SUB  = int(os.getenv("MAX_WORDS_PER_SUB", "5"))
 COMPRESS_THRESHOLD = 20 * 1024 * 1024
 FONTS_DIR          = "fonts"
 
+# Хранилище последних сегментов для /changeword
+# { user_id: { 'segments': [...], 'video_path': str, 'settings': dict } }
+_last_session: dict = {}
+
+def save_session(user_id: int, segments: list, video_path: str, settings: dict):
+    _last_session[str(user_id)] = {
+        'segments': segments,
+        'video_path': video_path,
+        'settings': settings
+    }
+
+def get_session(user_id: int) -> dict | None:
+    return _last_session.get(str(user_id))
+
+
 logger.info(f"Загружаю модель Whisper: {WHISPER_MODEL}...")
 model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
 logger.info("Модель загружена.")
@@ -334,8 +349,143 @@ def render_preset_preview(output_path: str, text: str, settings: dict,
     return True
 
 
+def parse_timing_text(text: str) -> list[dict]:
+    """
+    Парсит текст с таймингами формата:
+    "привет 2сек сегодня поговорим 3сек как работает 1сек бот"
+
+    Цифра перед "сек" = длительность предыдущего блока текста в секундах.
+    Последний блок без цифры получает 2 секунды по умолчанию.
+
+    Возвращает список сегментов с таймингами.
+    """
+    import re
+    # Разбиваем по паттерну "число+сек"
+    parts = re.split(r'(\d+(?:\.\d+)?\s*сек)', text.strip(), flags=re.IGNORECASE)
+
+    segments = []
+    current_time = 0.0
+    pending_text = ""
+
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        # Это таймер?
+        m = re.match(r'^(\d+(?:\.\d+)?)\s*сек$', part, re.IGNORECASE)
+        if m:
+            duration = float(m.group(1))
+            if pending_text:
+                segments.append({
+                    "start": current_time,
+                    "end":   current_time + duration,
+                    "text":  pending_text.strip()
+                })
+                current_time += duration
+                pending_text = ""
+        else:
+            # Текст — добавляем к ожидающему
+            if pending_text:
+                pending_text += " " + part
+            else:
+                pending_text = part
+
+    # Последний блок без таймера — 2 сек по умолчанию
+    if pending_text.strip():
+        segments.append({
+            "start": current_time,
+            "end":   current_time + 2.0,
+            "text":  pending_text.strip()
+        })
+
+    return segments
+
+
+def rebuild_with_custom_text(user_id: int, custom_text: str,
+                              output_path: str) -> tuple[bool, str, list]:
+    """
+    Перегенерирует видео с пользовательским текстом.
+
+    Поддерживает два формата:
+    1. Простой текст — тайминги из оригинала
+    2. Текст с таймингами: "привет 2сек пока 3сек" — явные длительности
+    """
+    import re
+    session = get_session(user_id)
+    if not session:
+        return False, "Нет сохранённого видео. Сначала отправь видео боту.", []
+
+    orig_segments = session['segments']
+    video_path    = session['video_path']
+    settings      = session['settings']
+
+    if not os.path.exists(video_path):
+        return False, "Исходное видео не найдено. Отправь видео заново.", []
+
+    if not custom_text.strip():
+        return False, "Текст пустой.", []
+
+    # Определяем формат: есть ли тайминги?
+    has_timings = bool(re.search(r'\d+\s*сек', custom_text, re.IGNORECASE))
+
+    if has_timings:
+        # Парсим тайминги из текста
+        new_segments = parse_timing_text(custom_text)
+        if not new_segments:
+            return False, "Не удалось распознать тайминги. Проверь формат: текст 2сек текст 3сек", []
+    else:
+        # Распределяем слова по оригинальным таймингам
+        words = custom_text.split()
+        if not words:
+            return False, "Текст пустой.", []
+
+        max_w       = int(settings.get('maxWords', 5))
+        total_words = len(words)
+        n_segs      = len(orig_segments)
+        new_segments = []
+        word_idx = 0
+
+        for i, seg in enumerate(orig_segments):
+            remaining_words = total_words - word_idx
+            remaining_segs  = n_segs - i
+            words_for_seg   = max(1, round(remaining_words / remaining_segs))
+            words_for_seg   = min(words_for_seg, max_w)
+            chunk = words[word_idx : word_idx + words_for_seg]
+            if not chunk:
+                break
+            word_idx += len(chunk)
+            new_segments.append({
+                'start': seg['start'],
+                'end':   seg['end'],
+                'text':  ' '.join(chunk)
+            })
+
+        if word_idx < total_words:
+            leftover = ' '.join(words[word_idx:])
+            if new_segments:
+                new_segments[-1]['text'] += ' ' + leftover
+
+    vid_w, vid_h = get_video_size(video_path)
+    ass_content  = build_ass(new_segments, settings, vid_w, vid_h)
+    ass_path     = output_path + ".ass"
+
+    with open(ass_path, "w", encoding="utf-8") as f:
+        f.write(ass_content)
+
+    font_name = settings.get('fontName', 'Arial')
+    ok = burn_subtitles(video_path, ass_path, output_path, font_name)
+
+    if os.path.exists(ass_path):
+        os.remove(ass_path)
+
+    if not ok:
+        return False, "Не удалось вшить субтитры.", []
+
+    return True, "", new_segments
+
+
 def process_video(input_path: str, output_path: str,
-                  use_censor: bool = False, settings: dict = None) -> tuple[bool, str]:
+                  use_censor: bool = False, settings: dict = None) -> tuple[bool, str, list]:
     s               = settings or {}
     base            = os.path.splitext(input_path)[0]
     audio_path      = base + "_audio.wav"
@@ -360,12 +510,12 @@ def process_video(input_path: str, output_path: str,
 
         logger.info("1/3 Аудио...")
         if not extract_audio(working_path, audio_path):
-            return False, "Не удалось извлечь аудио"
+            return False, "Не удалось извлечь аудио", []
 
         logger.info("2/3 Транскрипция...")
         words = transcribe(audio_path)
         if not words:
-            return False, "Речь не обнаружена"
+            return False, "Речь не обнаружена", []
 
         max_w    = int(s.get("maxWords", MAX_WORDS_PER_SUB))
         segments = words_to_segments(words, max_words=max_w)
@@ -380,13 +530,13 @@ def process_video(input_path: str, output_path: str,
 
         logger.info("3/3 Вшиваю...")
         if not burn_subtitles(working_path, ass_path, output_path, s.get("fontName", "Arial")):
-            return False, "Не удалось вшить субтитры"
+            return False, "Не удалось вшить субтитры", []
 
-        return True, ""
+        return True, "", segments
 
     except Exception as e:
         logger.exception(e)
-        return False, f"Ошибка: {str(e)}"
+        return False, f"Ошибка: {str(e)}", []
 
     finally:
         for p in [audio_path, ass_path, compressed_path]:
